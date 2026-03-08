@@ -2,7 +2,7 @@
 category: Promotions_and_Support
 topic: Guest Complaints
 version: 1.0
-last_updated: 2026-03-01
+last_updated: 2026-03-08
 ---
 
 # Guest Complaint Policy
@@ -40,16 +40,6 @@ Upon receiving a complaint:
 2. A responsible staff member is assigned.
 3. A solution is proposed within a reasonable timeframe.
 4. Appropriate compensation may be offered when justified.
-
-## Response Time
-
-- Minor issues: within 1 hour
-- Moderate issues: within 4 hours
-- Serious issues: immediate escalation
-
-## Documentation
-
-All complaints are logged in the internal service management system for quality improvement and tracking.
 
 ## When AI Should Escalate
 

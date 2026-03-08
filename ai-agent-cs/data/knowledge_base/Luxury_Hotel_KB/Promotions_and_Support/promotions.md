@@ -1,59 +1,29 @@
 ---
 category: Promotions_and_Support
-topic: Promotions and Special Offers
+topic: Promotions and Offers
 version: 1.0
-last_updated: 2026-03-01
+last_updated: 2026-03-08
 ---
 
-# Promotions and Special Offers Policy
+# Promotions and Offers
 
 ## Overview
 
-The hotel offers seasonal and exclusive promotions designed to enhance guest experiences while maintaining luxury service standards.
+We offer exclusive packages and promotional rates to provide added value and unique experiences for our guests.
 
-## Types of Promotions
+## Standard Offers
 
-### Seasonal Promotions
+- Advance Purchase Rate: Save up to 15% on the standard room rate when booking at least 14 days in advance. Full pre-payment is required.
+- Weekend Getaway Package: Includes a complimentary breakfast buffet for two and a guaranteed late check-out at 2:00 PM.
 
-Limited-time offers tied to holidays or events.
+## Terms and Conditions
 
-### Long Stay Discounts
+- Restrictions: Promotional rates cannot be combined with corporate discounts, group rates, or other special offers. Blackout dates may apply during major city events.
 
-Discounts for stays longer than 5 consecutive nights.
+## When AI Should Escalate
 
-### Honeymoon Packages
+The AI assistant must escalate if:
 
-Includes:
-
-- Room decoration
-- Complimentary champagne
-- Late checkout (subject to availability)
-
-### Corporate Rates
-
-Special rates for contracted corporate clients.
-
-### Loyalty Exclusive Offers
-
-Available only to registered loyalty members.
-
-## Booking Conditions
-
-- Promotions must be selected at time of booking.
-- Promotions cannot be combined unless explicitly stated.
-- Blackout dates may apply.
-
-## Modification and Cancellation
-
-Each promotion follows either:
-
-- Standard cancellation policy, or
-- Non-refundable policy (clearly stated at booking)
-
-## AI Handling Notes
-
-If a guest asks about:
-
-- Eligibility → Check membership or booking details.
-- Combining promotions → Explain restrictions.
-- Expired promotion → Offer current alternatives.
+- A guest insists on combining multiple incompatible promotional offers.
+- The guest disputes a promotional blackout date.
+- A guest claims they were promised a promotion by a third-party booking site that the hotel does not currently honor.

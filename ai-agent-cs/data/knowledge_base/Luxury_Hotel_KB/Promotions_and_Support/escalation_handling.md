@@ -2,54 +2,28 @@
 category: Promotions_and_Support
 topic: Escalation Handling
 version: 1.0
-last_updated: 2026-03-01
+last_updated: 2026-03-08
 ---
 
-# Escalation Handling Policy
+# Escalation Handling
 
 ## Overview
 
-Escalation ensures that complex or sensitive matters are handled by senior staff to protect guest satisfaction and brand reputation.
+We empower our staff to resolve issues immediately, but maintain a clear escalation path to ensure complex problems receive the appropriate management attention.
 
-## Escalation Levels
+## Resolution Process
 
-### Level 1 – Frontline Staff
+- Staff Empowerment: All frontline staff are empowered to provide immediate, reasonable solutions (e.g., complimentary breakfast or room changes) to resolve minor inconveniences on the spot.
+- The LEARN Method: Staff follow the LEARN protocol: Listen, Empathize, Apologize, Respond, and Notify.
 
-Handled by reception or department supervisor.
+## Management Escalation
 
-### Level 2 – Department Manager
+- Duty Manager: If an issue cannot be resolved by frontline staff, it is immediately escalated to the Duty Manager, who is available 24 hours a day.
 
-Applied when:
+## When AI Should Escalate
 
-- Guest dissatisfaction persists
-- Refund or compensation exceeds standard authority
-- VIP guest complaints
+The AI assistant must escalate if:
 
-### Level 3 – General Manager
-
-Applied when:
-
-- Legal threats are mentioned
-- Media exposure risk exists
-- Severe service failure occurs
-
-## AI Escalation Criteria
-
-The AI assistant must escalate immediately when:
-
-- The guest requests to speak to a manager
-- The guest mentions legal action
-- The guest reports discrimination
-- Safety or emergency concerns are raised
-- The AI confidence score is below threshold
-
-## Escalation Process
-
-1. Create internal ticket.
-2. Log guest details and conversation summary.
-3. Assign priority level.
-4. Notify responsible manager.
-
-## Service Standards
-
-Escalated cases must receive a human response within 2 hours.
+- A guest demands to speak directly with the General Manager.
+- The frontline staff or Duty Manager failed to resolve the guest's issue previously.
+- A guest threatens to leave negative public reviews or contact the media.

@@ -2,49 +2,27 @@
 category: Promotions_and_Support
 topic: Refund Policy
 version: 1.0
-last_updated: 2026-03-01
+last_updated: 2026-03-08
 ---
 
 # Refund Policy
 
 ## Overview
 
-Refunds are processed according to the rate type and cancellation policy selected at booking.
+Our refund policy is designed to be fair and transparent, prioritizing guest satisfaction while adhering to strict financial and accounting practices.
 
-## Eligible Refund Cases
+## Service Guarantee
 
-Refunds may apply when:
+- Satisfaction: If a specific service (such as in-room dining or a spa treatment) does not meet our luxury standards, the manager may authorize the removal of that specific charge from the guest's folio.
 
-- Cancellation occurs within allowed period.
-- Billing error is confirmed.
-- Service failure compensation is approved.
-- Duplicate payment is detected.
+## Processing Refunds
 
-## Non-Refundable Bookings
+- Timeline: Approved refunds are processed immediately on our end. However, it may take 3 to 5 business days for the funds to reflect in the guest's bank account, depending on their financial institution.
 
-Bookings marked as non-refundable are not eligible for refund unless:
+## When AI Should Escalate
 
-- Required by local law.
-- Approved by management under exceptional circumstances.
+The AI assistant must escalate if:
 
-## Refund Processing Time
-
-- Credit card refunds: 5–10 business days.
-- Bank transfer refunds: 7–14 business days.
-- Digital wallet refunds: 3–7 business days.
-
-## Partial Refunds
-
-May be granted for:
-
-- Early departure
-- Service recovery compensation
-- Billing adjustments
-
-## AI Escalation Conditions
-
-Escalate if:
-
-- Guest disputes non-refundable terms.
-- Guest demands immediate refund.
-- Chargeback or legal complaint is mentioned.
+- A guest demands an immediate cash refund for a transaction originally paid by credit card.
+- The guest claims an authorized refund has not appeared in their bank account after 7 business days.
+- A guest threatens to initiate a credit card chargeback.
