@@ -42,7 +42,7 @@ logger = logging.getLogger("build_vector_store")
 
 
 # ---------- CONFIG ----------
-KB_FOLDER = Path("data/knowledge_base/Luxury_Hotel_KB/Promotions_and_Support")
+KB_FOLDER = Path("data/knowledge_base/Luxury_Hotel_KB")
 VECTOR_STORE_DIR = Path("data/vector_store")
 VECTOR_STORE_DIR.mkdir(parents=True, exist_ok=True)
 

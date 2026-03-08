@@ -21,12 +21,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ingest_kb")
 
 KB_ROOT = Path("data/knowledge_base/Luxury_Hotel_KB")
-TARGET_SUBFOLDER = "Promotions_and_Support"  # change if you want to ingest other categories
+# TARGET_SUBFOLDER = "Promotions_and_Support"  # commented out to process entire KB
 
 if __name__ == "__main__":
-    target = KB_ROOT / TARGET_SUBFOLDER
+    target = KB_ROOT  # process entire knowledge base
     if not target.exists():
-        logger.error("KB subfolder not found: %s", target)
+        logger.error("KB root not found: %s", target)
         sys.exit(1)
 
     logger.info("Starting ingestion for: %s", target)

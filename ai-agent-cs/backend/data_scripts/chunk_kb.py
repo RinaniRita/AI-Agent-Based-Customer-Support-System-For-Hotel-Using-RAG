@@ -72,7 +72,7 @@ def remove_metadata_block(content: str) -> str:
     return re.sub(r"---(.*?)---", "", content, flags=re.DOTALL).strip()
 
 
-def process_markdown_file(filepath: Path) -> List[Dict]:
+def process_markdown_file(filepath: Path, base_path: Path) -> List[Dict]:
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -83,6 +83,10 @@ def process_markdown_file(filepath: Path) -> List[Dict]:
 
     all_chunks = []
     chunk_id = 0
+
+    # Add folder info to metadata
+    folder_path = filepath.parent.relative_to(base_path)
+    metadata["folder"] = str(folder_path)
 
     for section in sections:
         token_count = count_tokens(section)
@@ -119,16 +123,22 @@ def process_kb_folder(folder_path: str) -> List[Dict]:
     base_path = Path(folder_path)
     all_documents = []
 
-    for md_file in base_path.rglob("*.md"):
-        print(f"Processing: {md_file}")
-        chunks = process_markdown_file(md_file)
-        all_documents.extend(chunks)
+    # Collect all .md files
+    md_files = list(base_path.rglob("*.md"))
+    print(f"Found {len(md_files)} markdown files in {folder_path}")
 
+    for md_file in md_files:
+        print(f"Processing: {md_file}")
+        chunks = process_markdown_file(md_file, base_path)
+        all_documents.extend(chunks)
+        print(f"  -> Generated {len(chunks)} chunks")
+
+    print(f"Total chunks from all files: {len(all_documents)}")
     return all_documents
 
 
 if __name__ == "__main__":
-    kb_path = "data/knowledge_base/Luxury_Hotel_KB/Promotions_and_Support"
+    kb_path = "data/knowledge_base/Luxury_Hotel_KB"
     documents = process_kb_folder(kb_path)
 
     print(f"\nTotal Chunks Created: {len(documents)}")
