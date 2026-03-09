@@ -69,6 +69,24 @@ async def serve_index():
         return FileResponse(INDEX_FILE)
     raise HTTPException(status_code=404, detail="Frontend not found")
 
+
+@app.get("/style.css", include_in_schema=False)
+async def serve_style():
+    """Serve the main stylesheet for the frontend."""
+    css_path = FRONTEND_DIR / "style.css"
+    if css_path.exists():
+        return FileResponse(css_path, media_type="text/css")
+    raise HTTPException(status_code=404, detail="CSS not found")
+
+
+@app.get("/script.js", include_in_schema=False)
+async def serve_script():
+    """Serve the main script for the frontend."""
+    js_path = FRONTEND_DIR / "script.js"
+    if js_path.exists():
+        return FileResponse(js_path, media_type="application/javascript")
+    raise HTTPException(status_code=404, detail="JS not found")
+
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
