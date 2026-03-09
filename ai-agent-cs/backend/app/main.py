@@ -4,17 +4,16 @@ from typing import Dict, Any, Optional
 import logging
 import uvicorn
 from pathlib import Path
-
-from .config import (
-    OLLAMA_BASE_URL,
-    OLLAMA_MODEL,
-    OLLAMA_EMBEDDING_MODEL,
-    HOST,
-    PORT,
-)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from .services.llm_client import LLMClient
 from .services.rag_service import RAGService
 from .agent.customer_support_agent import CustomerSupportAgent
+from .config import (
+    HOST,
+    PORT,
+)
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -28,9 +27,6 @@ rag_service = RAGService()
 # Initialize agent
 support_agent = CustomerSupportAgent("CustomerSupport", llm_client, rag_service)
 
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 # Paths for serving the frontend
 BASE_DIR = Path(__file__).resolve().parents[2]
