@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Luxury Hotel AI Support</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Inter:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <section class="brand-panel" aria-label="Grand Aurora concierge overview">
+        <div>
+          <div class="brand-header">
+            <div class="brand-logo">G</div>
+            <div class="brand-title-group">
+              <div class="brand-title">Grand Aurora</div>
+              <div class="brand-subtitle">Concierge Atelier</div>
+            </div>
+          </div>
+          <p class="brand-body">
+            Welcome to your private
+            <strong>24/7 digital concierge</strong>. Ask anything about your
+            stay, from pillow menus and late check-outs to hidden local gems in
+            the city.
+          </p>
+          <div class="brand-highlights">
+            <span class="chip gold">Priority guests</span>
+            <span class="chip">Multi-lingual concierge</span>
+            <span class="chip">Instant confirmations</span>
+          </div>
+        </div>
+        <div class="brand-footer">
+          <div class="brand-meta">
+            <span class="brand-meta-label">Service window</span>
+            <span class="brand-meta-value">Always on · 24 / 7 / 365</span>
+          </div>
+          <div class="badge-live">
+            <span class="badge-dot"></span>
+            AI concierge online
+          </div>
+        </div>
+      </section>
+
+      <div class="chat-container">
+        <header class="chat-header">
+          <div class="chat-header-main">
+            <div class="chat-title">Luxury Concierge Chat</div>
+            <div class="chat-subtitle">
+              Ask about reservations, in-room services, spa, dining, or local
+              experiences.
+            </div>
+          </div>
+          <div class="chat-header-meta">
+            <div class="agent-status">
+              <span class="agent-status-dot"></span>
+              Virtual concierge
+            </div>
+            <div class="language-pill">EN · Multi-lingual</div>
+          </div>
+        </header>
+
+        <div class="chat-messages" id="chatMessages">
+          <div class="message bot">
+            Welcome to Grand Aurora. I am your AI concierge—how may I elevate
+            your stay today?
+          </div>
+        </div>
+
+        <div class="typing" id="typingIndicator">The concierge is typing…</div>
+
+        <div class="chat-input">
+          <input
+            type="text"
+            id="messageInput"
+            placeholder="Ask about late check-out, spa bookings, in-room dining, or local recommendations…"
+            maxlength="500"
+          />
+          <button id="sendButton">
+            <span>Send</span>
+            <span class="icon">➤</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="status" id="statusMessage"></div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
