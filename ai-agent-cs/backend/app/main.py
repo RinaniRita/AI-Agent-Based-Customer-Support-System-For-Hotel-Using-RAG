@@ -67,6 +67,16 @@ def get_rooms_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
+def get_booking_review_keyboard():
+    """Returns the keyboard for reviewing and editing booking details."""
+    keyboard = [
+        [InlineKeyboardButton("✏️ Change Name", callback_data="edit_name")],
+        [InlineKeyboardButton("✏️ Change Email", callback_data="edit_email")],
+        [InlineKeyboardButton("✏️ Change Phone", callback_data="edit_phone")],
+        [InlineKeyboardButton("✅ Confirm & Pay", callback_data="confirm_booking")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
 def get_room_detail_keyboard(room_type):
     """Generates the action buttons for a specific room."""
     keyboard = [
@@ -467,6 +477,63 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 text="Sorry, I encountered an error. Please try again.",
                 reply_markup=get_ai_chat_keyboard()
             )
+
+    # --- New: Edit Details Callbacks ---
+    elif data == "edit_name":
+        if chat_id in booking_sessions:
+            booking_sessions[chat_id]["step"] = "WAITING_NAME"
+            booking_sessions[chat_id]["step_before_edit"] = True
+            await query.edit_message_text(
+                text="✏️ *Changing Name*\n\nPlease type your updated *Full Name*:",
+                parse_mode="Markdown"
+            )
+    elif data == "edit_email":
+        if chat_id in booking_sessions:
+            booking_sessions[chat_id]["step"] = "WAITING_EMAIL"
+            booking_sessions[chat_id]["step_before_edit"] = True
+            await query.edit_message_text(
+                text="✏️ *Changing Email*\n\nPlease type your updated *Email Address*:",
+                parse_mode="Markdown"
+            )
+    elif data == "edit_phone":
+        if chat_id in booking_sessions:
+            booking_sessions[chat_id]["step"] = "WAITING_PHONE"
+            booking_sessions[chat_id]["step_before_edit"] = True
+            await query.edit_message_text(
+                text="✏️ *Changing Phone*\n\nPlease type your updated *Phone Number*:",
+                parse_mode="Markdown"
+            )
+    elif data == "confirm_booking":
+        if chat_id in booking_sessions:
+            session = booking_sessions[chat_id]
+            # Save final info to DB
+            update_booking_guest_info(
+                session["booking_id"],
+                session["guest_name"],
+                session["guest_email"],
+                session["guest_phone"]
+            )
+            
+            # Generate Link
+            checkout_url = f"{FRONTEND_URL}/review.html?id={session['booking_id']}&api={API_BASE_URL}"
+            
+            await query.edit_message_text(
+                text=(
+                    "✅ *Information Confirmed!*\n\n"
+                    "Your booking details have been saved. Please click the link below to complete your payment:\n\n"
+                    f"👉 [Proceed to Payment]({checkout_url})"
+                ),
+                parse_mode="Markdown"
+            )
+            # Clean up
+            del booking_sessions[chat_id]
+            user_states[chat_id] = "MAIN_MENU"
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="Is there anything else I can help you with?",
+                reply_markup=get_main_menu_keyboard()
+            )
+
     elif data == "coming_soon" or data == "front_desk" or data == "human_support":
         # Placeholder for other static menus
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]
@@ -605,7 +672,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Step 2: Waiting for name
         elif step == "WAITING_NAME":
-            session["guest_name"] = user_message.strip()
+            name_input = user_message.strip()
+            
+            # Validation: ^[A-Za-z][A-Za-z\s'-]{0,99}$ (Max 50 chars)
+            name_pattern = r"^[A-Za-z][A-Za-z\s'-]{0,49}$"
+            if not re.match(name_pattern, name_input):
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        "⚠️ *Invalid Name Format*\n\n"
+                        "Please enter a valid name (1-50 characters).\n"
+                        "• Must start with a letter\n"
+                        "• Can include spaces, hyphens, or apostrophes\n\n"
+                        "Please type your name again:"
+                    ),
+                    parse_mode="Markdown"
+                )
+                return
+
+            session["guest_name"] = name_input
+            
+            # If we were editing, go back to summary
+            if session.get("step_before_edit"):
+                session["step"] = "CONFIRM_SUMMARY"
+                del session["step_before_edit"]
+                await send_booking_summary(context, chat_id, session)
+                return
+
             session["step"] = "WAITING_EMAIL"
             await context.bot.send_message(
                 chat_id=chat_id,
@@ -616,7 +709,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Step 3: Waiting for email
         elif step == "WAITING_EMAIL":
-            session["guest_email"] = user_message.strip()
+            email_input = user_message.strip().lower()
+            
+            # Validation: ^[^\s@]+@[^\s@]+\.[^\s@]+$ (Max 254 chars)
+            email_pattern = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
+            if not re.match(email_pattern, email_input) or len(email_input) > 254:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        "⚠️ *Invalid Email Format*\n\n"
+                        "Please enter a valid email address (e.g., name@example.com).\n\n"
+                        "Please type your email again:"
+                    ),
+                    parse_mode="Markdown"
+                )
+                return
+
+            session["guest_email"] = email_input
+            
+            # If we were editing, go back to summary
+            if session.get("step_before_edit"):
+                session["step"] = "CONFIRM_SUMMARY"
+                del session["step_before_edit"]
+                await send_booking_summary(context, chat_id, session)
+                return
+
             session["step"] = "WAITING_PHONE"
             await context.bot.send_message(
                 chat_id=chat_id,
@@ -625,45 +742,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Step 4: Waiting for phone → Save info & generate checkout link
+        # Step 4: Waiting for phone → Show Review Summary with Edit Buttons
         elif step == "WAITING_PHONE":
             session["guest_phone"] = user_message.strip()
-
-            # Save guest info to DB
-            update_booking_guest_info(
-                session["booking_id"],
-                session["guest_name"],
-                session["guest_email"],
-                session["guest_phone"]
-            )
-
-            # Generate GitHub Pages checkout URL with dynamic API bridge
-            checkout_url = f"{FRONTEND_URL}/review.html?id={session['booking_id']}&api={API_BASE_URL}"
-            room_num = session.get('room_number', '')
-
-            # Send booking summary (with Markdown)
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=(
-                    "🎉 *Your booking is almost complete!*\n\n"
-                    f"🏨 *Room:* {session['room_name']} (#{room_num})\n"
-                    f"👤 *Name:* {session['guest_name']}\n"
-                    f"📧 *Email:* {session['guest_email']}\n"
-                    f"📞 *Phone:* {session['guest_phone']}\n\n"
-                    "Please click the link below to review and complete payment:\n"
-                ),
-                parse_mode="Markdown"
-            )
-            # Send checkout URL as a SEPARATE plain-text message so Telegram auto-links it
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=f"👉 {checkout_url}",
-                reply_markup=get_main_menu_keyboard()
-            )
-
-            # Clean up session
-            del booking_sessions[chat_id]
-            user_states[chat_id] = "MAIN_MENU"
+            session["step"] = "CONFIRM_SUMMARY"
+            if session.get("step_before_edit"):
+                del session["step_before_edit"]
+            await send_booking_summary(context, chat_id, session)
             return
 
     # ─── DEFAULT: AI CONCIERGE MODE ───
@@ -690,6 +775,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error processing chat request: {e}", exc_info=True)
         await context.bot.send_message(chat_id=chat_id, text="Sorry, I encountered an error processing your request. Please try again.")
+
+async def send_booking_summary(context, chat_id, session):
+    """Helper to send the interactive booking review summary."""
+    room_num = session.get('room_number', '')
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "📝 *Review Your Details*\n\n"
+            f"🏨 *Room:* {session['room_name']} (#{room_num})\n"
+            f"👤 *Name:* {session['guest_name']}\n"
+            f"📧 *Email:* {session['guest_email']}\n"
+            f"📞 *Phone:* {session['guest_phone']}\n\n"
+            "Is everything correct? You can edit any field below or confirm to proceed to payment."
+        ),
+        reply_markup=get_booking_review_keyboard(),
+        parse_mode="Markdown"
+    )
 
 def main():
     if not TELEGRAM_BOT_TOKEN:
