@@ -122,10 +122,7 @@
     </div>
 
     <script>
-        // CHANGE THIS TO YOUR BACKEND SERVER URL LATER IF HOSTING ON CLOUD
-        const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-            ? 'http://localhost:8000' 
-            : 'https://your-ngrok-or-backend-url.com'; 
+ 
 
         async function loadBooking() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -138,7 +135,11 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/booking/${bookingId}`);
+                const response = await fetch(`${API_BASE_URL}/api/booking/${bookingId}`, {
+                    headers: {
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
                 if (!response.ok) throw new Error('Booking not found');
                 
                 const data = await response.json();
