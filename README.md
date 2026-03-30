@@ -49,12 +49,14 @@ By grounding generative responses in local hotel documents and integrating a rea
 ### Quick Start Guide
 
 1. **Clone and Setup**
+
    ```bash
    git clone <repository-url>
    cd ai-agent-cs
    ```
 
 2. **Create and Activate Virtual Environment**
+
    ```bash
    python -m venv .venv
    # Windows
@@ -64,22 +66,27 @@ By grounding generative responses in local hotel documents and integrating a rea
    ```
 
 3. **Install Dependencies**
+
    ```bash
    pip install -r requirements.txt
    ```
 
 4. **Initialize Physical Database**
+
    ```bash
    python -m backend.database.setup_db
    ```
-   *(This ensures all 40 physical rooms are populated correctly).*
+
+   _(This ensures all 40 physical rooms are populated correctly)._
 
 5. **Ingest Knowledge Base (RAG Setup)**
    Process the hotel documents into the FAISS vector store:
+
    ```bash
    python -m backend.data_scripts.ingest_kb
    ```
-   *(This script chunks the documents in `data/knowledge_base/` and builds the index in `data/vector_store/`)*.
+
+   _(This script chunks the documents in `data/knowledge_base/` and builds the index in `data/vector_store/`)_.
 
 6. **Configure Environment Variables**
    - Copy `.env.example` to `.env` if not already done.
@@ -90,6 +97,7 @@ By grounding generative responses in local hotel documents and integrating a rea
      ```
 
 7. **Set Up Ollama (in a separate terminal)**
+
    ```bash
    ollama serve
    ollama pull qwen2.5:7b-instruct  # Main model
@@ -97,11 +105,13 @@ By grounding generative responses in local hotel documents and integrating a rea
    ```
 
 8. **Start the API Server (Terminal 1)**
+
    ```bash
    uvicorn web_server:app --reload
    ```
 
 9. **Start the Telegram Bot (Terminal 2)**
+
    ```bash
    python -m backend.app.main
    ```
@@ -116,20 +126,24 @@ By grounding generative responses in local hotel documents and integrating a rea
 Because your GitHub Pages site uses secure (`https://`), modern browsers will block it from fetching data from an insecure local computer (`http://localhost:8000`). Depending on how you are testing the system, follow these configurations:
 
 ### Option 1: Fully Local Development
+
 If you just want to test on your own computer without deploying or opening tunnels:
+
 1. In `main.py`, set:
    `FRONTEND_URL = "http://127.0.0.1:5500/github_pages_frontend"` (or whatever local port you are using to serve the HTML folder, e.g. via VSCode Live Server).
 2. In `review.html` and `payment.html`, set:
    `const API_BASE_URL = 'http://localhost:8000';`
 
 ### Option 2: Live GitHub Pages + Local Backend (Using Ngrok)
+
 To safely connect your live, secure GitHub Pages site to your insecure local laptop database, you must use a tunneling tool like Ngrok:
+
 1. Start Ngrok targeting your FastAPI backend: `ngrok http 8000`
 2. Copy your secure Ngrok URL (e.g., `https://7d41-42-118-12-116.ngrok-free.app`).
 3. Open `github_pages_frontend/review.html` and `github_pages_frontend/payment.html`.
 4. Locate the `<script>` tag near the bottom of both files and paste your Ngrok URL exactly like this:
    ```javascript
-   const API_BASE_URL = 'https://7d41-42-118-12-116.ngrok-free.app';
+   const API_BASE_URL = "https://7d41-42-118-12-116.ngrok-free.app";
    ```
 5. Commit and push these two files back up to GitHub. In 30 seconds, your live site will dynamically fetch real data from your laptop database!
 6. Remember to copy the exact same string into your local `.env` file (copied from `.env.example`) so your backend settings are kept organized.
@@ -145,7 +159,7 @@ ai-agent-cs/
 │   │   ├── agent/              # AI Agents and Confidence Scoring
 │   │   ├── main.py             # Telegram Application & State Machine
 │   │   └── services/           # RAG and LLM coordination
-│   ├── database/               
+│   ├── database/
 │   │   ├── db_service.py       # SQLite CRUD & Physical Inventory queries
 │   │   └── setup_db.py         # 40-Room Seeding Script
 │   └── data_scripts/           # Vector DB compilation scripts
@@ -157,9 +171,33 @@ ai-agent-cs/
 │   ├── review.html
 │   └── payment.html
 ├── web_server.py               # FastAPI JSON Backend (CORS enabled)
-├── requirements.txt            
+├── requirements.txt
 └── README.md
 ```
+
+## 🧹 Maintenance & Database Reset
+
+If you need to wipe all booking history and reset physical room availability, follow these steps to perform a clean database reset:
+
+1. **Stop all running processes**:
+   - `Ctrl+C` in the terminal running the API Server (`web_server.py`).
+   - `Ctrl+C` in the terminal running the Telegram Bot (`main.py`).
+
+2. **Delete the database file**:
+   - Locate and delete `data/hotel_data.db`.
+   - _(Optional)_ On Windows PowerShell: `Remove-Item data/hotel_data.db`
+
+3. **Re-initialize and re-seed**:
+   - Run the setup script to recreate the schema and re-populate the 40 physical rooms:
+     ```bash
+     python -m backend.database.setup_db
+     ```
+
+4. **Restart your services**:
+   - Start Terminal 1 (`uvicorn web_server:app --reload`)
+   - Start Terminal 2 (`python -m backend.app.main`)
+
+---
 
 ## License
 
