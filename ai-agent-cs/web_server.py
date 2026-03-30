@@ -21,10 +21,14 @@ app = FastAPI(title="Luxury Hotel API")
 # Enable CORS for GitHub pages frontend!
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with "https://yourusername.github.io" in production
+    allow_origins=[
+        "https://rinanirita.github.io",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "ngrok-skip-browser-warning"],
 )
 
 @app.on_event("startup")

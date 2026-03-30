@@ -74,7 +74,14 @@ By grounding generative responses in local hotel documents and integrating a rea
    ```
    *(This ensures all 40 physical rooms are populated correctly).*
 
-5. **Configure Environment Variables**
+5. **Ingest Knowledge Base (RAG Setup)**
+   Process the hotel documents into the FAISS vector store:
+   ```bash
+   python -m backend.data_scripts.ingest_kb
+   ```
+   *(This script chunks the documents in `data/knowledge_base/` and builds the index in `data/vector_store/`)*.
+
+6. **Configure Environment Variables**
    - Copy `.env.example` to `.env` if not already done.
    - Configure your keys and GitHub pages URL:
      ```env
@@ -82,27 +89,27 @@ By grounding generative responses in local hotel documents and integrating a rea
      FRONTEND_URL=https://your-username.github.io/repo-name/github_pages_frontend
      ```
 
-6. **Set Up Ollama (in a separate terminal)**
+7. **Set Up Ollama (in a separate terminal)**
    ```bash
    ollama serve
    ollama pull qwen2.5:7b-instruct  # Main model
-   ollama pull all-MiniLM-L6-v2     # Embedding model
+   ollama pull all-MiniLM-L6-v2     # Embedding model (optional fallback)
    ```
 
-7. **Start the API Server (Terminal 1)**
+8. **Start the API Server (Terminal 1)**
    ```bash
    uvicorn web_server:app --reload
    ```
 
-8. **Start the Telegram Bot (Terminal 2)**
+9. **Start the Telegram Bot (Terminal 2)**
    ```bash
    python -m backend.app.main
    ```
 
-9. **Host the Frontend**
-   - Upload the `github_pages_frontend` folder to a GitHub repository.
-   - Enable GitHub Pages on the `main` branch.
-   - Update `FRONTEND_URL` in `.env` or `main.py` with your live link.
+10. **Host the Frontend**
+    - Upload the `github_pages_frontend` folder to a GitHub repository.
+    - Enable GitHub Pages on the `main` branch.
+    - Update `FRONTEND_URL` in `.env` or `main.py` with your live link.
 
 ## 🔄 Switching Between Local and Live (GitHub Pages)
 
