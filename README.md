@@ -2,52 +2,40 @@
 
 ## Introduction
 
-**AI-Agent-Based-Customer-Support-System-For-Hotel-Using-RAG** is an extensible proof-of-concept that combines autonomous AI agents with Retrieval-Augmented Generation (RAG) to deliver fast, accurate, and context-aware customer support for hotels. Integrating directly into Telegram, it enables users to seamlessly chat with the hotel's AI assistant. By grounding generative responses in hotel-specific documents (policies, FAQs, reservation records, and local knowledge), the system reduces hallucinations and ensures consistent, trustworthy interactions across booking, guest inquiries, and service requests.
+**AI-Agent-Based-Customer-Support-System-For-Hotel-Using-RAG** is an extensible proof-of-concept that combines autonomous AI agents with Retrieval-Augmented Generation (RAG) to deliver fast, accurate, and context-aware customer support for hotels. Using Telegram as the primary guest interface, it seamlessly blends conversational AI with a **full-stack physical room booking system**.
+
+By grounding generative responses in local hotel documents and integrating a real-time reservation state machine, the system reduces hallucinations, prevents illogical bookings (e.g., past dates), tracks physical room inventory, and offers a smooth checkout flow through a static web frontend.
 
 ## Features
 
-- **Telegram Bot Integration**: Conversational interface directly accessible on Telegram
-- **Local AI Processing**: Runs entirely on local hardware using Ollama for privacy and cost-efficiency
-- **Retrieval-Augmented Generation (RAG)**: Enhances responses with relevant hotel-specific knowledge
-- **Autonomous AI Agents**: Intelligent agents with confidence scoring and automatic escalation
-- **Extensible Architecture**: Modular design for adding new agents and knowledge sources
-- **Hotel Knowledge Base**: Pre-loaded with comprehensive hotel policies, services, and local information
+- **Telegram Bot Integration**: Conversational interface directly accessible on Telegram.
+- **Physical Inventory Engine**: Actively manages 40 physical hotel rooms (Rooms 101 to 805) across 8 different price tiers, preventing overbooking.
+- **Time-Aware Booking Validation**: AI automatically catches and rejects past-date check-ins using real-time system clock validation.
+- **GitHub Pages Frontend Integration**: Seamlessly generates and sends a checkout URL connected to a responsive, glassmorphism-themed static web interface.
+- **FastAPI JSON Backend**: A robust REST API running natively with CORS enabled to serve the static frontend.
+- **Local AI Processing**: Runs entirely on local hardware using Ollama for privacy and cost-efficiency.
+- **Retrieval-Augmented Generation (RAG)**: Enhances responses with relevant hotel-specific knowledge.
 
 ## How It Works
 
 ### Architecture Overview
 
 ```text
-User on Telegram → Telegram Bot API → AI Agent → RAG Service → LLM (Ollama) → Response
-                                        ↓
-                                  Vector Store (FAISS)
-                                        ↓
-                                Hotel Knowledge Base
+       [Telegram Bot] <──────> [Main.py State Machine & RAG Agent]
+             │                              │
+             ▼                              ▼
+    [GitHub Pages Frontend]         [Local Ollama / FAISS]
+ (review.html & payment.html)               │
+             │                              ▼
+             └─────────> [FastAPI JSON Backend] <──────> [SQLite DB (Internal)]
+                         (Serves /api/booking)             (40 Physical Rooms)
 ```
 
-1. **User Interaction**: Customers send queries via Telegram (e.g., "What time is check-in?")
-2. **Agent Processing**: Specialized agents (e.g., Customer Support Agent) handle the query
-3. **RAG Retrieval**: Relevant documents are retrieved from the vectorized knowledge base
-4. **LLM Generation**: Ollama generates context-aware responses using retrieved information
-5. **Response Delivery**: System sends the answer back to the user on Telegram
-
-### Key Components
-
-#### AI Agents
-
-- **Base Agent**: Abstract class with RAG integration and confidence calculation
-- **Customer Support Agent**: Handles general inquiries, bookings, and service questions
-
-#### RAG System
-
-- **Vector Store**: FAISS-based storage of document embeddings
-- **Embedding Model**: Sentence Transformers for text vectorization
-- **Retrieval**: Semantic search with similarity scoring
-
-#### Local LLM
-
-- **Ollama Integration**: Runs open-source models locally (e.g., Qwen2.5 7B)
-- **Privacy-First**: No data sent to external APIs
+1. **User Interaction**: Customers chat with the AI on Telegram to ask questions or start a booking.
+2. **State Machine**: The bot enters a 4-step booking flow handling Dates → Name → Email → Phone.
+3. **Inventory Management**: The database finds a specific empty physical room (e.g., Room #402) for those exact dates and assigns it.
+4. **Handoff**: The Bot generates a URL pointing to the static GitHub Pages frontend.
+5. **Checkout**: The GitHub Pages site uses JavaScript (`fetch`) to call the FastAPI backend, displaying the booking details and completing the payload securely.
 
 ## Setup & Startup Guide
 
@@ -59,8 +47,6 @@ User on Telegram → Telegram Bot API → AI Agent → RAG Service → LLM (Olla
 - Git
 
 ### Quick Start Guide
-
-Follow these steps to get the project running locally:
 
 1. **Clone and Setup**
    ```bash
@@ -82,36 +68,41 @@ Follow these steps to get the project running locally:
    pip install -r requirements.txt
    ```
 
-4. **Configure Environment Variables**
+4. **Initialize Physical Database**
+   ```bash
+   python -m backend.database.setup_db
+   ```
+   *(This ensures all 40 physical rooms are populated correctly).*
+
+5. **Configure Environment Variables**
    - Copy `.env.example` to `.env` if not already done.
-   - Open `.env` and configure your Telegram bot token:
+   - Configure your keys and GitHub pages URL:
      ```env
      TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+     FRONTEND_URL=https://your-username.github.io/repo-name/github_pages_frontend
      ```
 
-5. **Set Up Ollama**
-   In a separate terminal, ensure Ollama is running and has the right models:
+6. **Set Up Ollama (in a separate terminal)**
    ```bash
    ollama serve
    ollama pull qwen2.5:7b-instruct  # Main model
    ollama pull all-MiniLM-L6-v2     # Embedding model
    ```
 
-6. **Process Knowledge Base** (First time only)
+7. **Start the API Server (Terminal 1)**
    ```bash
-   python backend/data_scripts/ingest_kb.py
+   uvicorn web_server:app --reload
    ```
 
-7. **Start the Telegram Bot**
+8. **Start the Telegram Bot (Terminal 2)**
    ```bash
    python -m backend.app.main
    ```
 
-### Using the Bot
-
-1. Open Telegram and search for your bot.
-2. Click **Start** or type `/start`.
-3. Ask the bot hotel-related questions (e.g., "What amenities do you offer?", "What is the check-in time?").
+9. **Host the Frontend**
+   - Upload the `github_pages_frontend` folder to a GitHub repository.
+   - Enable GitHub Pages on the `main` branch.
+   - Update `FRONTEND_URL` in `.env` or `main.py` with your live link.
 
 ## Project Structure
 
@@ -119,56 +110,24 @@ Follow these steps to get the project running locally:
 ai-agent-cs/
 ├── backend/
 │   ├── app/
-│   │   ├── agent/              # AI agents
-│   │   │   ├── agent.py        # Base agent class
-│   │   │   └── customer_support_agent.py
-│   │   ├── config.py           # Configuration settings
-│   │   ├── main.py             # Telegram application entrypoint
-│   │   ├── models/             # Data models
-│   │   ├── services/           # Core services
-│   │   │   ├── llm_client.py   # Ollama integration
-│   │   │   └── rag_service.py  # RAG functionality
-│   │   └── utils/              # Utility functions
-│   └── data_scripts/           # Data processing scripts
-│       ├── ingest_kb.py        # Knowledge base ingestion
-│       ├── chunk_kb.py         # Document chunking
-│       └── build_vector_store.py
+│   │   ├── agent/              # AI Agents and Confidence Scoring
+│   │   ├── main.py             # Telegram Application & State Machine
+│   │   └── services/           # RAG and LLM coordination
+│   ├── database/               
+│   │   ├── db_service.py       # SQLite CRUD & Physical Inventory queries
+│   │   └── setup_db.py         # 40-Room Seeding Script
+│   └── data_scripts/           # Vector DB compilation scripts
 ├── data/
-│   ├── knowledge_base/         # Hotel documents
-│   └── vector_store/           # FAISS index and metadata
-├── .env                        # Environment variables
-├── requirements.txt            # Python dependencies
+│   ├── knowledge_base/         # Hotel markdown documents
+│   ├── vector_store/           # FAISS index
+│   └── hotel_data.db           # SQLite database
+├── github_pages_frontend/      # Static Web UI for GitHub Pages
+│   ├── review.html
+│   └── payment.html
+├── web_server.py               # FastAPI JSON Backend (CORS enabled)
+├── requirements.txt            
 └── README.md
 ```
-
-## Configuration
-
-### Environment Variables (.env)
-
-```bash
-# Telegram App Configuration
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
-
-# Ollama Settings
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:7b-instruct
-OLLAMA_EMBEDDING_MODEL=all-MiniLM-L6-v2
-
-# RAG Settings
-TOP_K=4
-SIMILARITY_THRESHOLD=0.30
-MAX_OUTPUT_TOKENS=512
-CHUNK_SIZE=500
-CHUNK_OVERLAP=80
-```
-
-## Future Enhancements
-
-- **Multi-Agent System**: Specialized agents for bookings, complaints
-- **Integration APIs**: Connect with actual Property Management Systems
-- **Advanced RAG**: Hybrid search, re-ranking
-- **Analytics**: Conversation logging and insights
-- **Multilingual Support**: Handle multiple languages
 
 ## License
 
