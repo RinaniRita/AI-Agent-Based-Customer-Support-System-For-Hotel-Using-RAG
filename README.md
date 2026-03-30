@@ -116,13 +116,16 @@ If you just want to test on your own computer without deploying or opening tunne
    `const API_BASE_URL = 'http://localhost:8000';`
 
 ### Option 2: Live GitHub Pages + Local Backend (Using Ngrok)
-To test the live GitHub frontend while running the backend securely from your laptop:
+To safely connect your live, secure GitHub Pages site to your insecure local laptop database, you must use a tunneling tool like Ngrok:
 1. Start Ngrok targeting your FastAPI backend: `ngrok http 8000`
-2. Copy the secure Ngrok URL (e.g., `https://123-abc.ngrok-free.app`).
-3. In `review.html` and `payment.html`, update the JavaScript:
-   `const API_BASE_URL = 'https://123-abc.ngrok-free.app';`
-4. Commit and push those changes to GitHub.
-5. In `main.py`, ensure `FRONTEND_URL` is set to your GitHub Pages URL (e.g., `https://your-username.github.io/ai-agent-cs/github_pages_frontend`).
+2. Copy your secure Ngrok URL (e.g., `https://7d41-42-118-12-116.ngrok-free.app`).
+3. Open `github_pages_frontend/review.html` and `github_pages_frontend/payment.html`.
+4. Locate the `<script>` tag near the bottom of both files and paste your Ngrok URL exactly like this:
+   ```javascript
+   const API_BASE_URL = 'https://7d41-42-118-12-116.ngrok-free.app';
+   ```
+5. Commit and push these two files back up to GitHub. In 30 seconds, your live site will dynamically fetch real data from your laptop database!
+6. Remember to copy the exact same string into your local `.env` file (copied from `.env.example`) so your backend settings are kept organized.
 
 ---
 
