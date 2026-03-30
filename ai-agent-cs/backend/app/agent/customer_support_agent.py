@@ -1,5 +1,6 @@
 from .agent import BaseAgent
 from typing import List
+import os
 
 class CustomerSupportAgent(BaseAgent):
     """
@@ -7,16 +8,12 @@ class CustomerSupportAgent(BaseAgent):
     """
 
     def _get_system_prompt(self) -> str:
-        return """You are a helpful and professional hotel customer support assistant for Luxury Hotel.
-
-Your role is to:
-- Provide accurate information about hotel services, policies, and amenities
-- Assist with booking inquiries and general questions
-- Be polite, friendly, and efficient
-- Use the provided context to give specific, relevant answers
-- If you don't have enough information, suggest contacting human support
-
-Always maintain a welcoming tone and focus on guest satisfaction."""
+        prompt_path = os.path.join(os.path.dirname(__file__), "ai_prompts", "customer_support.md")
+        try:
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            return "You are a helpful and professional hotel customer support assistant."
 
     def get_capabilities(self) -> List[str]:
         return [

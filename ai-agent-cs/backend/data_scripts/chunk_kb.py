@@ -138,7 +138,7 @@ def process_kb_folder(folder_path: str) -> List[Dict]:
 
 
 if __name__ == "__main__":
-    kb_path = "data/knowledge_base/Luxury_Hotel_KB"
+    kb_path = "data/knowledge_base/Apollo_Hotel_KB"
     documents = process_kb_folder(kb_path)
 
     print(f"\nTotal Chunks Created: {len(documents)}")

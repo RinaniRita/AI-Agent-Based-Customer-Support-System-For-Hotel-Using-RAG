@@ -64,7 +64,7 @@ class RAGService:
                 self.index = faiss.read_index(index_path)
 
                 # Load metadata
-                with open(metadata_path, 'r') as f:
+                with open(metadata_path, 'r', encoding='utf-8') as f:
                     metadata_list = json.load(f)
                     self.metadata = metadata_list
                     # Extract documents from text_snippet
@@ -100,7 +100,7 @@ class RAGService:
             logger.error(f"Failed to add documents: {e}")
             raise
 
-    def retrieve(self, query: str, top_k: int = 4, threshold: float = 0.5) -> List[dict]:
+    def retrieve(self, query: str, top_k: int = 4, threshold: float = 1.5) -> List[dict]:
         """
         Retrieve relevant documents for a query.
 
@@ -112,6 +112,10 @@ class RAGService:
         Returns:
             List of dicts with 'content', 'score', and 'metadata'
         """
+        if len(self.documents) == 0:
+            logger.warning("Vector store is empty. Returning empty results.")
+            return []
+            
         try:
             query_emb = self.embedder.encode([query]).astype(np.float32)
             distances, indices = self.index.search(query_emb, min(top_k, len(self.documents)))

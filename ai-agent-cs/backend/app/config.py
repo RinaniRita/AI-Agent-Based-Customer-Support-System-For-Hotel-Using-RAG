@@ -18,9 +18,7 @@ OLLAMA_EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
 TOP_K = int(os.getenv("TOP_K", 4))
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", 0.30))
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", 0.75))
-MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", 512))
-
-# --------------------------------------------------
+MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", 2048))
 # Chunking settings
 # --------------------------------------------------
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 500))
@@ -40,8 +38,7 @@ APP_ENV = os.getenv("APP_ENV", "development")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
-HOST = os.getenv("HOST", "127.0.0.1")
-PORT = int(os.getenv("PORT", 8000))
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
 # --------------------------------------------------
 # Optional / future settings

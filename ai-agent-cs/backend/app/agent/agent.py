@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
 import logging
-from ..services.llm_client import LLMClient
+from ..services.llm_client import llm_client
 from ..services.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
@@ -11,7 +11,7 @@ class BaseAgent(ABC):
     Base class for AI agents in the hotel support system.
     """
 
-    def __init__(self, name: str, llm_client: LLMClient, rag_service: RAGService):
+    def __init__(self, name: str, llm_client, rag_service: RAGService):
         self.name = name
         self.llm_client = llm_client
         self.rag_service = rag_service
@@ -38,19 +38,16 @@ class BaseAgent(ABC):
             rag_results = self.rag_service.retrieve(user_query, top_k=4)
             context_docs = [result['content'] for result in rag_results]
 
-            # Build prompt with context
-            full_prompt = f"{self.system_prompt}\n\nUser Query: {user_query}"
-
-            if context_docs:
-                context_str = "\n\n".join(context_docs)
-                full_prompt += f"\n\nRelevant Information:\n{context_str}"
-
-            # Generate response
-            response = self.llm_client.generate_response(full_prompt, context_docs)
+            # Generate response passing the system prompt separately
+            response = self.llm_client.generate_response(
+                prompt=user_query,
+                context=context_docs,
+                system_prompt=self.system_prompt
+            )
 
             # Determine confidence and escalation need
             confidence = self._calculate_confidence(response, rag_results)
-            needs_escalation = self._should_escalate(response, confidence, context)
+            needs_escalation = self._should_escalate(response, confidence, context or {})
 
             return {
                 'response': response,
@@ -106,4 +103,4 @@ class BaseAgent(ABC):
     @abstractmethod
     def get_capabilities(self) -> List[str]:
         """Return list of capabilities this agent handles."""
-        pass
+        return []
