@@ -147,7 +147,11 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/booking/${currentBookingId}`);
+                const response = await fetch(`${API_BASE_URL}/api/booking/${currentBookingId}`, {
+                    headers: {
+                        'ngrok-skip-browser-warning': 'true'
+                    }
+                });
                 if (!response.ok) throw new Error('Booking not found');
                 
                 const data = await response.json();
@@ -182,7 +186,10 @@
             try {
                 const res = await fetch(`${API_BASE_URL}/api/booking/confirm`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'ngrok-skip-browser-warning': 'true'
+                    },
                     body: JSON.stringify({ booking_id: parseInt(currentBookingId) })
                 });
 
