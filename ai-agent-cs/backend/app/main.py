@@ -7,7 +7,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Messa
 from .services.llm_client import llm_client
 from .services.rag_service import RAGService
 from .agent.customer_support_agent import CustomerSupportAgent
-from .config import TELEGRAM_BOT_TOKEN
+from .config import TELEGRAM_BOT_TOKEN, FRONTEND_URL, API_BASE_URL
 
 # Database service
 import sys, os
@@ -38,8 +38,8 @@ user_states = {}
 # Booking session tracking: { chat_id: { "booking_id": int, "room_type": str, "step": str } }
 booking_sessions = {}
 
-# GitHub Pages Frontend URL
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://rinanirita.github.io/AI-Agent-Based-Customer-Support-System-For-Hotel-Using-RAG/ai-agent-cs/github_pages_frontend")
+# Web server base URL (remove hardcoded local if needed, now using config)
+# FRONTEND_URL and API_BASE_URL imported from .config above
 
 def get_main_menu_keyboard():
     """Generates the inline keyboard for the Main Menu."""
@@ -637,8 +637,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 session["guest_phone"]
             )
 
-            # Generate GitHub Pages checkout URL
-            checkout_url = f"{FRONTEND_URL}/review.html?id={session['booking_id']}"
+            # Generate GitHub Pages checkout URL with dynamic API bridge
+            checkout_url = f"{FRONTEND_URL}/review.html?id={session['booking_id']}&api={API_BASE_URL}"
             room_num = session.get('room_number', '')
 
             # Send booking summary (with Markdown)

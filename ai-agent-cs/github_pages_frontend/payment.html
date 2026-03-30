@@ -129,12 +129,15 @@
     </div>
 
     <script>
-
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Try to get API URL from the 'api' parameter in the link. 
+        // If not found, use a safe default (localhost).
+        const API_BASE_URL = urlParams.get('api') || 'http://localhost:8000';
 
         let currentBookingId = null;
 
         async function loadPayment() {
-            const urlParams = new URLSearchParams(window.location.search);
             currentBookingId = urlParams.get('id');
 
             if (!currentBookingId) {
@@ -144,11 +147,7 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE_URL}/api/booking/${currentBookingId}`, {
-                    headers: {
-                        'ngrok-skip-browser-warning': 'true'
-                    }
-                });
+                const response = await fetch(`${API_BASE_URL}/api/booking/${currentBookingId}`);
                 if (!response.ok) throw new Error('Booking not found');
                 
                 const data = await response.json();
@@ -183,10 +182,7 @@
             try {
                 const res = await fetch(`${API_BASE_URL}/api/booking/confirm`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'ngrok-skip-browser-warning': 'true' 
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ booking_id: parseInt(currentBookingId) })
                 });
 

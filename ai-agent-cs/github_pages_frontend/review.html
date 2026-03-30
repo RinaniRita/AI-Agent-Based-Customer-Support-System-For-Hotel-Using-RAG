@@ -122,10 +122,13 @@
     </div>
 
     <script>
- 
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Try to get API URL from the 'api' parameter in the link. 
+        // If not found, use a safe default (localhost).
+        const API_BASE_URL = urlParams.get('api') || 'http://localhost:8000';
 
         async function loadBooking() {
-            const urlParams = new URLSearchParams(window.location.search);
             const bookingId = urlParams.get('id');
 
             if (!bookingId) {
@@ -156,8 +159,8 @@
                 document.getElementById('guest_phone').innerText = data.guest_phone || 'N/A';
                 document.getElementById('total_price').innerText = `€${data.total_price || 0}`;
 
-                // Set Payment Link
-                document.getElementById('paymentLink').href = `payment.html?id=${bookingId}`;
+                // Set Payment Link (pass the api url forward)
+                document.getElementById('paymentLink').href = `payment.html?id=${bookingId}&api=${encodeURIComponent(API_BASE_URL)}`;
 
                 // Show Card
                 document.getElementById('loading').style.display = 'none';
