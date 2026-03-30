@@ -104,6 +104,28 @@ By grounding generative responses in local hotel documents and integrating a rea
    - Enable GitHub Pages on the `main` branch.
    - Update `FRONTEND_URL` in `.env` or `main.py` with your live link.
 
+## 🔄 Switching Between Local and Live (GitHub Pages)
+
+Because your GitHub Pages site uses secure (`https://`), modern browsers will block it from fetching data from an insecure local computer (`http://localhost:8000`). Depending on how you are testing the system, follow these configurations:
+
+### Option 1: Fully Local Development
+If you just want to test on your own computer without deploying or opening tunnels:
+1. In `main.py`, set:
+   `FRONTEND_URL = "http://127.0.0.1:5500/github_pages_frontend"` (or whatever local port you are using to serve the HTML folder, e.g. via VSCode Live Server).
+2. In `review.html` and `payment.html`, set:
+   `const API_BASE_URL = 'http://localhost:8000';`
+
+### Option 2: Live GitHub Pages + Local Backend (Using Ngrok)
+To test the live GitHub frontend while running the backend securely from your laptop:
+1. Start Ngrok targeting your FastAPI backend: `ngrok http 8000`
+2. Copy the secure Ngrok URL (e.g., `https://123-abc.ngrok-free.app`).
+3. In `review.html` and `payment.html`, update the JavaScript:
+   `const API_BASE_URL = 'https://123-abc.ngrok-free.app';`
+4. Commit and push those changes to GitHub.
+5. In `main.py`, ensure `FRONTEND_URL` is set to your GitHub Pages URL (e.g., `https://your-username.github.io/ai-agent-cs/github_pages_frontend`).
+
+---
+
 ## Project Structure
 
 ```text
