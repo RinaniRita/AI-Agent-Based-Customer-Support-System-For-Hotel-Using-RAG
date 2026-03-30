@@ -8,7 +8,7 @@ last_updated: 2026-03-23
 # Apollo Hotel Scripted FAQs
 
 ## Overview
-This document contains meticulously crafted, scripted Q&A pairs tailored exclusively for **Apollo Hotel**. When a guest asks a question matching the intent below, the AI assistant must use this information to provide a highly professional, accurate, and perfectly formatted response.
+This document contains meticulously crafted, scripted Q&A pairs Tailored exclusively for **Apollo Hotel**. When a guest asks a question matching the intent below, the AI assistant must use this information to provide a highly professional, accurate, and perfectly formatted response.
 
 ---
 
@@ -76,4 +76,4 @@ Absolutely! Our dedicated 24-hour Concierge team is here to curate the perfect s
 We are always here to help! You can reach our Front Desk directly 24/7 via:
 * 📞 **Phone**: +84 24 3825 8888
 * 💬 **WhatsApp/Zalo**: +84 90 123 4567
-* ✉️ **Email**: info@hotelclement.vn
+* ✉️ **Email**: info@apollohotel.vn

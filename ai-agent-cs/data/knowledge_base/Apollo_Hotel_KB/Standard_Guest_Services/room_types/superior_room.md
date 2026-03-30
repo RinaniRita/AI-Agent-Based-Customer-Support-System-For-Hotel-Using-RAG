@@ -1,7 +1,7 @@
 # Superior Room
 
 ## Description
-Full of sun and light, the Superior Rooms of Hotel Clement Prague are located on the 7th and 8th floor. They mostly feature stunning views over the rooftops or on the river. The modern design blends oak wood with beige luxury fabric decorations to offer the feel of utmost luxury.
+Full of sun and light, the Our Superior Rooms at **Apollo Hotel** are beautifully furnished in light natural colors. These quiet rooms ensure a relaxing stay in the heart of **Hanoi**. The modern design blends oak wood with beige luxury fabric decorations to offer the feel of utmost luxury.
 
 ## Pricing
 - **Base Price:** Starting from 168 EUR per night for 1 adult (prices vary by date and availability). Breakfast is included.

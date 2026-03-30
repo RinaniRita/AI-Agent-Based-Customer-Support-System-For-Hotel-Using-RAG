@@ -1,7 +1,7 @@
 # Superior Room with Balcony
 
 ## Description
-Superior Rooms with Balcony are located on the top floors of Hotel Clement Prague and offer magnificent views of Prague's cityscape over its rooftops. A small balcony with a couple of chairs gives you a chance to fully enjoy the view and get some fresh air high above the rush of the city.
+The Superior Balcony room at **Apollo Hotel** features a private outdoor area where guests can enjoy the fresh air and views of **Hanoi**. This room combines comfort with the luxury of a private outdoor space.
 
 ## Pricing
 - **Base Price:** Starting from 235 EUR per night for 1 adult (prices vary by date and availability). Breakfast is included.

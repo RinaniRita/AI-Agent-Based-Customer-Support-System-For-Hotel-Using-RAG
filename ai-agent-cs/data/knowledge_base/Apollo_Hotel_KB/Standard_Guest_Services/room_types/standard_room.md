@@ -1,7 +1,7 @@
 # Standard Double/Twin Room
 
 ## Description
-Tastefully decorated in light natural colours, our Standard rooms offer everything our guests need to enjoy a pleasant stay in Hotel Clement Prague. Highly appreciated by both business and leisure travellers, it provides a quiet environment thanks to double glazed windows. 
+The Standard Room at **Apollo Hotel** provides a comfortable and affordable stay in **Hanoi**. Perfect for solo travelers or couples who need a cozy base for exploring the city. thanks to double glazed windows. 
 
 ## Pricing
 - **Base Price:** Starting from 127 EUR per night for 1 adult (prices vary by date and availability). Breakfast is included.

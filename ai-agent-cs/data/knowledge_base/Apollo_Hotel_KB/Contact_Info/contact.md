@@ -21,7 +21,7 @@ This document contains the official physical address and contact methods for the
 
 - **Main Reception Line**: +84 24 3825 8888
 - **WhatsApp / Zalo Support**: +84 90 123 4567
-- **Email Address**: info@hotelclement.vn
+- **Email Address**: info@apollohotel.vn
 
 ## When AI Should Use This
 

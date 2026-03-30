@@ -1,7 +1,4 @@
-# Junior Suite
-
-## Description
-The Junior Suite offers extra space and is beautifully furnished in light natural colors. Located at the very end of the corridor, it is one of our quietest rooms. It is the perfect choice to relax after a long day of exploring Prague or working at the office.
+The Junior Suite offers extra space and is beautifully furnished in light natural colors. Located at the very end of the corridor, it is one of our quietest rooms at **Apollo Hotel**. It is the perfect choice to relax after a long day of exploring **Hanoi** or working at the office.
 
 ## Pricing
 - **Base Price:** Starting from 175 EUR per night for 1 adult (prices vary by date and availability). Breakfast is included.

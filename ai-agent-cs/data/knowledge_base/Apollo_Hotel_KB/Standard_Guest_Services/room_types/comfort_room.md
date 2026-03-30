@@ -1,7 +1,7 @@
 # Comfort Double/Twin Room
 
 ## Description
-Our Comfortable rooms offer more space than our Standard rooms, and provide a city or street view. Tastefully decorated in light natural colours, they offer everything our guests need to enjoy a pleasant stay at Hotel Clement Prague. The room features double glazed windows to ensure quiet and a heated bathroom floor for comfort.
+The Comfort Room at **Apollo Hotel** offers a spacious and relaxing atmosphere, ideal for travelers who want a bit more room during their stay in **Hanoi**. The room features double glazed windows to ensure quiet and a heated bathroom floor for comfort.
 
 ## Pricing
 - **Base Price:** Starting from 142 EUR per night for 1 adult (prices vary by date and availability). Breakfast is included.

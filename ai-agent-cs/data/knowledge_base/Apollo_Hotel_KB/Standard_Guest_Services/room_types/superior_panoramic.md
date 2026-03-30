@@ -1,7 +1,7 @@
 # Superior Room with Panoramic Window and Balcony
 
 ## Description
-Our most romantic rooms - the Superior Room with a Panoramic Window - are located on the top floor of Hotel Clement Prague and offer a magnificent view of Prague and the Vltava River. Curved panoramic windows create a unique atmosphere regardless of the weather or season. The balcony attached to this room type is the perfect spot to take in the stunning city views. Modern design offers the feel of utmost luxury.
+Our most romantic rooms - the Superior Room with a Panoramic Window - are located on the top floor of Apollo Hotel Hanoi and offer a magnificent view of Hanoi and the Vltava River. The Superior Panoramic room at **Apollo Hotel** offers a breathtaking view of the **Hanoi** skyline from its private balcony. This room is designed for guests who appreciate a stunning vista during their stay. Modern design offers the feel of utmost luxury.
 
 ## Pricing
 - **Base Price:** Starting from 235 EUR per night for 1 adult (prices vary by date and availability; check the booking engine for live rates). Breakfast is included.

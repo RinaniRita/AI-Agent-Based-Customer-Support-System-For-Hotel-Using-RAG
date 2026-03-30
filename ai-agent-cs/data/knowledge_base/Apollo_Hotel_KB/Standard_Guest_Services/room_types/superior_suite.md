@@ -1,7 +1,7 @@
 # Superior Suite
 
 ## Description
-The Superior Suite of Hotel Clement Prague is a luxurious 2-room suite featuring an adjoining bedroom and living room. It offers immense space and premium comfort, making it highly suitable for both business travelers and families.
+The Superior Suite is the largest and most luxurious room type at **Apollo Hotel**. Located on the high floor corner, it features a large bedroom and a separate living room with a dining area. It is the perfect choice for families or guests who want to enjoy the best of **Hanoi**.
 
 ## Pricing
 - **Base Price:** Starting from 235 EUR per night for 1 adult (prices vary by date and availability). Breakfast is included.
