@@ -35,13 +35,7 @@ support_agent = CustomerSupportAgent("CustomerSupport", llm_client, rag_service)
 # In-memory dictionary for state management (For Production: use Redis or Database)
 user_states = {}
 
-# Booking session tracking: { chat_id: { "booking_id": int, "room_type": str, "step": str } }
-booking_sessions = {}
 
-# GitHub Pages Frontend URL
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://rinanirita.github.io/AI-Agent-Based-Customer-Support-System-For-Hotel-Using-RAG/github_pages_frontend")
-
-def get_main_menu_keyboard():
     """Generates the inline keyboard for the Main Menu."""
     keyboard = [
         [InlineKeyboardButton("🏨 Hotel Rooms & Booking", callback_data="view_rooms")],
