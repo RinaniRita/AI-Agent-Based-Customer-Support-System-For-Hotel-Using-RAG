@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Review — Luxury Hotel</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .card {
+            background: rgba(255,255,255,0.06);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        .hotel-name { font-size: 14px; text-transform: uppercase; letter-spacing: 3px; color: #d4af37; margin-bottom: 6px; }
+        h1 { font-size: 28px; font-weight: 700; margin-bottom: 30px; color: #fff; }
+        .section-title { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: #d4af37; margin-bottom: 12px; border-bottom: 1px solid rgba(212,175,55,0.3); padding-bottom: 6px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 30px; }
+        .info-item { background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 16px; }
+        .info-item.full { grid-column: 1 / -1; }
+        .info-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #aaa; margin-bottom: 4px; }
+        .info-value { font-size: 16px; font-weight: 600; color: #fff; }
+        .price-box { background: linear-gradient(135deg, rgba(212,175,55,0.2), rgba(212,175,55,0.05)); border: 1px solid rgba(212,175,55,0.3); border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 30px; }
+        .price-label { font-size: 13px; color: #ccc; margin-bottom: 4px; }
+        .price-value { font-size: 36px; font-weight: 700; color: #d4af37; }
+        .price-note { font-size: 12px; color: #999; margin-top: 4px; }
+        .btn { display: block; width: 100%; padding: 16px; background: linear-gradient(135deg, #d4af37, #b8860b); color: #1a1a2e; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; transition: all 0.3s; text-decoration: none; text-align: center; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(212,175,55,0.4); }
+        .disclaimer { font-size: 11px; color: #777; text-align: center; margin-top: 16px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <p class="hotel-name">✦ Luxury Hotel</p>
+        <h1>Booking Review</h1>
+
+        <p class="section-title">Room Details</p>
+        <div class="info-grid">
+            <div class="info-item full">
+                <div class="info-label">Room Type</div>
+                <div class="info-value">{{ room_name }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Room Number</div>
+                <div class="info-value">#{{ room_number }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Check-In</div>
+                <div class="info-value">{{ check_in }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Check-Out</div>
+                <div class="info-value">{{ check_out }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Nights</div>
+                <div class="info-value">{{ nights }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Price / Night</div>
+                <div class="info-value">€{{ price_per_night }}</div>
+            </div>
+        </div>
+
+        <p class="section-title">Guest Information</p>
+        <div class="info-grid">
+            <div class="info-item full">
+                <div class="info-label">Full Name</div>
+                <div class="info-value">{{ guest_name }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Email</div>
+                <div class="info-value">{{ guest_email }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Phone</div>
+                <div class="info-value">{{ guest_phone }}</div>
+            </div>
+        </div>
+
+        <div class="price-box">
+            <div class="price-label">Total Amount</div>
+            <div class="price-value">€{{ total_price }}</div>
+            <div class="price-note">Breakfast included · Free cancellation up to 24h</div>
+        </div>
+
+        <a href="/booking/payment?id={{ booking_id }}" class="btn">Confirm & Proceed to Payment →</a>
+        <p class="disclaimer">By proceeding, you agree to our terms and conditions. Your information is encrypted and secure.</p>
+    </div>
+</body>
+</html>

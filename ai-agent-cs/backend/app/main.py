@@ -1,11 +1,22 @@
 import logging
 import asyncio
+import re
+from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from .services.llm_client import llm_client
 from .services.rag_service import RAGService
 from .agent.customer_support_agent import CustomerSupportAgent
 from .config import TELEGRAM_BOT_TOKEN
+
+# Database service
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+from backend.database.db_service import (
+    init_db, create_booking, update_booking_dates,
+    update_booking_guest_info, get_booking, get_room_info,
+    check_availability, get_available_room_numbers
+)
 
 # Initialize logging
 logging.basicConfig(
@@ -14,6 +25,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Initialize database
+init_db()
+
 # Initialize services
 rag_service = RAGService()
 support_agent = CustomerSupportAgent("CustomerSupport", llm_client, rag_service)
@@ -21,9 +35,16 @@ support_agent = CustomerSupportAgent("CustomerSupport", llm_client, rag_service)
 # In-memory dictionary for state management (For Production: use Redis or Database)
 user_states = {}
 
+# Booking session tracking: { chat_id: { "booking_id": int, "room_type": str, "step": str } }
+booking_sessions = {}
+
+# GitHub Pages Frontend URL (update YOUR_USERNAME and repo_name)
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://YOUR_USERNAME.github.io/repo_name/github_pages_frontend")
+
 def get_main_menu_keyboard():
     """Generates the inline keyboard for the Main Menu."""
     keyboard = [
+        [InlineKeyboardButton("🏨 Hotel Rooms & Booking", callback_data="view_rooms")],
         [InlineKeyboardButton("🛎️ Front Desk Services", callback_data="front_desk")],
         [InlineKeyboardButton("🍽️ Order Room Service", callback_data="order_food")],
         [InlineKeyboardButton("🤖 Ask AI Concierge", callback_data="ai_mode")],
@@ -31,14 +52,32 @@ def get_main_menu_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def get_ai_chat_keyboard():
-    """Generates the inline keyboard for the AI Chat including quick prompts."""
+def get_rooms_keyboard():
+    """Generates the inline keyboard for browsing hotel rooms."""
     keyboard = [
-        [InlineKeyboardButton("📜 Hotel Policies", callback_data="ai_quick_policies"),
-         InlineKeyboardButton("🛎️ Hotel Services", callback_data="ai_quick_services")],
-        [InlineKeyboardButton("📞 Contact Info", callback_data="ai_quick_contact"),
-         InlineKeyboardButton("🗺️ Local Area Info", callback_data="ai_quick_local")],
-        [InlineKeyboardButton("❓ FAQ", callback_data="ai_quick_faq")],
+        [InlineKeyboardButton("🛏️ Standard Room (from 127€)", callback_data="room_standard")],
+        [InlineKeyboardButton("🛏️ Standard + Extra Bed (from 183€)", callback_data="room_standard_extra")],
+        [InlineKeyboardButton("🏙️ Comfort Room (from 142€)", callback_data="room_comfort")],
+        [InlineKeyboardButton("🌟 Superior Room (from 168€)", callback_data="room_superior")],
+        [InlineKeyboardButton("🌇 Superior Balcony (from 235€)", callback_data="room_sup_balcony")],
+        [InlineKeyboardButton("🌅 Superior Panoramic (from 235€)", callback_data="room_sup_panoramic")],
+        [InlineKeyboardButton("💎 Junior Suite (from 175€)", callback_data="room_junior_suite")],
+        [InlineKeyboardButton("👑 Superior Suite (from 235€)", callback_data="room_sup_suite")],
+        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_room_detail_keyboard(room_type):
+    """Generates the action buttons for a specific room."""
+    keyboard = [
+        [InlineKeyboardButton("✅ Book Now", callback_data=f"book_{room_type}")],
+        [InlineKeyboardButton("🔙 Back to Rooms", callback_data="view_rooms")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_ai_chat_keyboard():
+    """Generates the inline keyboard for exiting the AI Chat."""
+    keyboard = [
         [InlineKeyboardButton("🔙 Return to Main Menu", callback_data="main_menu")]
     ]
     return InlineKeyboardMarkup(keyboard)
@@ -48,7 +87,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_states[chat_id] = "MAIN_MENU"
     
-    welcome_message = "👋 **Welcome to Apollo Hotel!**\n\nWhat can I help you with today?"
+    welcome_message = "👋 **Welcome to Luxury Hotel!**\n\nWhat can I help you with today?"
     await context.bot.send_message(
         chat_id=chat_id, 
         text=welcome_message, 
@@ -77,6 +116,118 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_menu_keyboard(),
             parse_mode="Markdown"
         )
+    elif data == "view_rooms":
+        user_states[chat_id] = "VIEWING_ROOMS"
+        await query.edit_message_text(
+            text="🏨 **Our Luxury Rooms**\n\nPlease select a room type below to see more details and pricing:",
+            reply_markup=get_rooms_keyboard(),
+            parse_mode="Markdown"
+        )
+    elif data == "room_standard":
+        text = (
+            "🛏️ **Standard Double/Twin Room**\n\n"
+            "*Tastefully decorated in light natural colours, offering a quiet environment thanks to double glazed windows.*\n\n"
+            "💰 **Starting from:** 127 EUR / night (Breakfast included)\n"
+            "🛏️ **Beds:** 1 Double or 2 Twins\n"
+            "✨ **Highlights:** Heated bathroom floors, Fast Wi-Fi, A/C"
+        )
+        await query.edit_message_text(text=text, reply_markup=get_room_detail_keyboard("standard"), parse_mode="Markdown")
+    elif data == "room_standard_extra":
+        text = (
+            "🛏️ **Standard Room + Extra Bed**\n\n"
+            "*Extended Standard room with more space, comfortably sleeping up to 3 adults with a full-sized extra bed.*\n\n"
+            "💰 **Starting from:** 183 EUR / night (Breakfast included)\n"
+            "🛏️ **Beds:** 1 Double or 2 Twins + Extra Bed\n"
+            "👥 **Max Occupancy:** 3 adults\n"
+            "✨ **Highlights:** Extra space, Heated floors, Fast Wi-Fi, A/C"
+        )
+        await query.edit_message_text(text=text, reply_markup=get_room_detail_keyboard("standard_extra"), parse_mode="Markdown")
+    elif data == "room_comfort":
+        text = (
+            "🏙️ **Comfort Double/Twin Room**\n\n"
+            "*Offers more space than our Standard rooms with beautiful city or street views.*\n\n"
+            "💰 **Starting from:** 142 EUR / night (Breakfast included)\n"
+            "🛏️ **Beds:** 1 Double or 2 Twins\n"
+            "✨ **Highlights:** Extra Space, City Views, Heated floors, Fast Wi-Fi"
+        )
+        await query.edit_message_text(text=text, reply_markup=get_room_detail_keyboard("comfort"), parse_mode="Markdown")
+    elif data == "room_superior":
+        text = (
+            "🌟 **Superior Room**\n\n"
+            "*Full of sun and light on the 7th and 8th floor. Features stunning rooftop or river views.*\n\n"
+            "💰 **Starting from:** 168 EUR / night (Breakfast included)\n"
+            "🛏️ **Beds:** 1 Large Double (Max 2 people, No kids)\n"
+            "✨ **Highlights:** Nespresso, Bathrobes, Free Water & Pralines"
+        )
+        await query.edit_message_text(text=text, reply_markup=get_room_detail_keyboard("superior"), parse_mode="Markdown")
+    elif data == "room_sup_balcony":
+        text = (
+            "🌇 **Superior Room with Balcony**\n\n"
+            "*Top-floor room with a private balcony offering magnificent views over Prague's rooftops.*\n\n"
+            "💰 **Starting from:** 235 EUR / night (Breakfast included)\n"
+            "🛏️ **Beds:** Double or Twin (Max 2 people)\n"
+            "🏙️ **View:** City rooftops + Private Balcony\n"
+            "✨ **Highlights:** Nespresso, Bathrobes, Welcome treats"
+        )
+        await query.edit_message_text(text=text, reply_markup=get_room_detail_keyboard("sup_balcony"), parse_mode="Markdown")
+    elif data == "room_sup_panoramic":
+        text = (
+            "🌅 **Superior Panoramic Window + Balcony**\n\n"
+            "*Our most romantic room! Top floor with curved panoramic windows and stunning river & city views.*\n\n"
+            "💰 **Starting from:** 235 EUR / night (Breakfast included)\n"
+            "🛏️ **Beds:** Double Bed (Max 2 people)\n"
+            "🏙️ **View:** River + City Panorama + Balcony\n"
+            "✨ **Highlights:** Nespresso, Bathrobes, Welcome treats"
+        )
+        await query.edit_message_text(text=text, reply_markup=get_room_detail_keyboard("sup_panoramic"), parse_mode="Markdown")
+    elif data == "room_junior_suite":
+        text = (
+            "💎 **Junior Suite**\n\n"
+            "*Extra space, beautifully furnished. One of our quietest rooms, located at the end of the corridor. Perfect for families!*\n\n"
+            "💰 **Starting from:** 175 EUR / night (Breakfast included)\n"
+            "🛏️ **Beds:** 1 Double + Sofa Bed (sleeps 3 adults or 2+2 kids)\n"
+            "👶 **Children:** Allowed (baby cot available)\n"
+            "✨ **Highlights:** Nespresso, Bathrobes, Smart TV, Bathtub"
+        )
+        await query.edit_message_text(text=text, reply_markup=get_room_detail_keyboard("junior_suite"), parse_mode="Markdown")
+    elif data == "room_sup_suite":
+        text = (
+            "👑 **Superior Suite**\n\n"
+            "*Luxurious 2-room suite with separate bedroom and living room. Ideal for business travelers and families.*\n\n"
+            "💰 **Starting from:** 235 EUR / night (Breakfast included)\n"
+            "🛏️ **Beds:** King Bed + Sofa Bed (up to 4 people)\n"
+            "🛁 **Bathrooms:** 2 full bathrooms\n"
+            "👶 **Children:** Welcome (baby cot available)\n"
+            "✨ **Highlights:** 2 Smart TVs, Microwave, Nespresso, Bathrobes, Early check-in/late check-out"
+        )
+        await query.edit_message_text(text=text, reply_markup=get_room_detail_keyboard("sup_suite"), parse_mode="Markdown")
+    elif data.startswith("book_"):
+        # Extract room_type from callback (e.g., "book_standard" -> "standard")
+        room_type = data.replace("book_", "")
+        room_info = get_room_info(room_type)
+        room_name = room_info["display_name"] if room_info else "Selected Room"
+
+        # Create a pending booking in the database
+        booking_id = create_booking(chat_id, room_type)
+
+        # Track the booking session
+        booking_sessions[chat_id] = {
+            "booking_id": booking_id,
+            "room_type": room_type,
+            "room_name": room_name,
+            "step": "WAITING_DATES"
+        }
+        user_states[chat_id] = "BOOKING_FLOW"
+
+        booking_prompt = (
+            f"✅ *Excellent choice! Let's book the {room_name}.*\n\n"
+            "📅 Please type your *Check-in* and *Check-out* dates below.\n\n"
+            "Example: `April 5 to April 8`\n\n"
+            "_I'll check availability for you right away!_ 👇"
+        )
+        cancel_kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel Booking", callback_data="main_menu")]])
+        await query.edit_message_text(text=booking_prompt, reply_markup=cancel_kb, parse_mode="Markdown")
+        
     elif data == "order_food":
         keyboard = [
             [InlineKeyboardButton("🍔 Burger & Fries", callback_data="coming_soon")],
@@ -87,11 +238,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
-    elif data.startswith("ai_quick_"):
-        user_states[chat_id] = "AI_MODE"
-
-        # --- Scripted Response: Hotel Services Overview ---
-        # This bypasses RAG to guarantee a complete, accurate list of ALL services.
         if data == "ai_quick_services":
             scripted_services = (
                 "✨ *Here is a complete overview of our services at Apollo Hotel:*\n\n"
@@ -330,34 +476,217 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
 
+def parse_dates(text: str):
+    """Try to extract check-in and check-out dates from user text."""
+    # Common patterns: "April 5 to April 8", "2026-04-05 to 2026-04-08", "5/4 to 8/4"
+    text = text.strip()
+    patterns = [
+        # "April 5 to April 8" or "April 5 - April 8"
+        r'(\w+ \d{1,2})\s*(?:to|-)\s*(\w+ \d{1,2})',
+        # "2026-04-05 to 2026-04-08"
+        r'(\d{4}-\d{2}-\d{2})\s*(?:to|-)\s*(\d{4}-\d{2}-\d{2})',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            try:
+                d1_str, d2_str = match.group(1), match.group(2)
+                # Try parsing with year
+                for fmt in ["%Y-%m-%d", "%B %d", "%b %d"]:
+                    try:
+                        d1 = datetime.strptime(d1_str, fmt)
+                        d2 = datetime.strptime(d2_str, fmt)
+                        # If no year was parsed, assume current/next year
+                        if d1.year == 1900:
+                            now = datetime.now()
+                            d1 = d1.replace(year=now.year)
+                            d2 = d2.replace(year=now.year)
+                            if d1 < now:
+                                d1 = d1.replace(year=now.year + 1)
+                                d2 = d2.replace(year=now.year + 1)
+                        return d1, d2
+                    except ValueError:
+                        continue
+            except Exception:
+                continue
+    return None, None
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle incoming text messages. Auto-routes to AI Concierge."""
+    """Handle incoming text messages. Routes to booking flow or AI concierge."""
     chat_id = update.effective_chat.id
     user_message = update.message.text
-    
-    # Auto-switch user to AI_MODE when they type any message
-    user_states[chat_id] = "AI_MODE"
+    state = user_states.get(chat_id, "MAIN_MENU")
 
-    # RAG LLM Processing
+    # ─── BOOKING FLOW STATE MACHINE ───
+    if state == "BOOKING_FLOW" and chat_id in booking_sessions:
+        session = booking_sessions[chat_id]
+        step = session.get("step")
+
+        # Step 1: Waiting for dates
+        if step == "WAITING_DATES":
+            check_in, check_out = parse_dates(user_message)
+            if not check_in or not check_out:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="❌ I couldn't understand those dates. Please try again.\n\nExample: `April 5 to April 8`",
+                    parse_mode="Markdown"
+                )
+                return
+
+            # ── Real-time past-date rejection ──
+            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            if check_in < today:
+                today_str = today.strftime("%B %d, %Y")
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        f"❌ You cannot book a date in the past!\n\n"
+                        f"📆 Today is *{today_str}*.\n"
+                        "Please enter a *future* check-in date."
+                    ),
+                    parse_mode="Markdown"
+                )
+                return
+
+            if check_out <= check_in:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="❌ Check-out date must be after check-in date. Please try again.",
+                    parse_mode="Markdown"
+                )
+                return
+
+            nights = (check_out - check_in).days
+            ci_str = check_in.strftime("%Y-%m-%d")
+            co_str = check_out.strftime("%Y-%m-%d")
+
+            # ── Check physical room availability ──
+            available_rooms = get_available_room_numbers(session["room_type"], ci_str, co_str)
+            if not available_rooms:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        f"😞 Sorry, all 5 rooms of *{session['room_name']}* are fully booked "
+                        f"from {ci_str} to {co_str}.\n\n"
+                        "Please try different dates or choose another room type."
+                    ),
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Rooms", callback_data="view_rooms")]]),
+                    parse_mode="Markdown"
+                )
+                del booking_sessions[chat_id]
+                user_states[chat_id] = "MAIN_MENU"
+                return
+
+            # Save dates to DB and assign a physical room
+            assigned_room = update_booking_dates(session["booking_id"], ci_str, co_str, nights)
+            session["step"] = "WAITING_NAME"
+            session["room_number"] = assigned_room
+
+            room_info = get_room_info(session["room_type"])
+            total = room_info["price_per_night"] * nights
+            rooms_left = len(available_rooms) - 1  # minus the one just assigned
+
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=(
+                    f"✅ *{session['room_name']}* is available!\n\n"
+                    f"🚪 *Assigned Room:* #{assigned_room}\n"
+                    f"📅 *Check-in:* {ci_str}\n"
+                    f"📅 *Check-out:* {co_str}\n"
+                    f"🌙 *Nights:* {nights}\n"
+                    f"💰 *Total:* €{total:.0f}\n"
+                    f"🏨 *Rooms still available:* {rooms_left} of 5\n\n"
+                    "Now, please type your *Full Name* to continue."
+                ),
+                parse_mode="Markdown"
+            )
+            return
+
+        # Step 2: Waiting for name
+        elif step == "WAITING_NAME":
+            session["guest_name"] = user_message.strip()
+            session["step"] = "WAITING_EMAIL"
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"👤 Thank you, *{session['guest_name']}*!\n\nPlease type your *Email Address*.",
+                parse_mode="Markdown"
+            )
+            return
+
+        # Step 3: Waiting for email
+        elif step == "WAITING_EMAIL":
+            session["guest_email"] = user_message.strip()
+            session["step"] = "WAITING_PHONE"
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="📧 Got it! Now please type your *Phone Number*.",
+                parse_mode="Markdown"
+            )
+            return
+
+        # Step 4: Waiting for phone → Save info & generate checkout link
+        elif step == "WAITING_PHONE":
+            session["guest_phone"] = user_message.strip()
+
+            # Save guest info to DB
+            update_booking_guest_info(
+                session["booking_id"],
+                session["guest_name"],
+                session["guest_email"],
+                session["guest_phone"]
+            )
+
+            # Generate GitHub Pages checkout URL
+            checkout_url = f"{FRONTEND_URL}/review.html?id={session['booking_id']}"
+            room_num = session.get('room_number', '')
+
+            # Send booking summary (with Markdown)
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=(
+                    "🎉 *Your booking is almost complete!*\n\n"
+                    f"🏨 *Room:* {session['room_name']} (#{room_num})\n"
+                    f"👤 *Name:* {session['guest_name']}\n"
+                    f"📧 *Email:* {session['guest_email']}\n"
+                    f"📞 *Phone:* {session['guest_phone']}\n\n"
+                    "Please click the link below to review and complete payment:\n"
+                ),
+                parse_mode="Markdown"
+            )
+            # Send checkout URL as a SEPARATE plain-text message so Telegram auto-links it
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"👉 {checkout_url}",
+                reply_markup=get_main_menu_keyboard()
+            )
+
+            # Clean up session
+            del booking_sessions[chat_id]
+            user_states[chat_id] = "MAIN_MENU"
+            return
+
+    # ─── DEFAULT: AI CONCIERGE MODE ───
+    user_states[chat_id] = "AI_MODE"
     logger.info(f"Processing AI chat request: {user_message[:50]}...")
     user_context = {"session_id": str(chat_id), "user_id": update.effective_user.id}
-    
+
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
-        
+
         result = await asyncio.to_thread(
             support_agent.process_query,
             user_message,
             user_context
         )
-        
+
         await context.bot.send_message(
-            chat_id=chat_id, 
-            text=result['response'], 
-            reply_markup=get_ai_chat_keyboard(), # Always show the exit button
+            chat_id=chat_id,
+            text=result['response'],
+            reply_markup=get_ai_chat_keyboard(),
             parse_mode="Markdown"
         )
-        
+
     except Exception as e:
         logger.error(f"Error processing chat request: {e}", exc_info=True)
         await context.bot.send_message(chat_id=chat_id, text="Sorry, I encountered an error processing your request. Please try again.")
