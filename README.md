@@ -15,6 +15,7 @@ By grounding generative responses in local hotel documents and integrating a rea
 - **FastAPI JSON Backend**: A robust REST API running natively with CORS enabled to serve the static frontend.
 - **Local AI Processing**: Runs entirely on local hardware using Ollama for privacy and cost-efficiency.
 - **Retrieval-Augmented Generation (RAG)**: Enhances responses with relevant hotel-specific knowledge.
+- **Two-Way Google Sheets Sync**: Features real-time bidirectional synchronization, allowing staff to manage bookings directly from a spreadsheet while Telegram interactions propagate instantly to the cloud sheet.
 
 ## How It Works
 
@@ -34,8 +35,9 @@ By grounding generative responses in local hotel documents and integrating a rea
 1. **User Interaction**: Customers chat with the AI on Telegram to ask questions or start a booking.
 2. **State Machine**: The bot enters a 4-step booking flow handling Dates → Name → Email → Phone.
 3. **Inventory Management**: The database finds a specific empty physical room (e.g., Room #402) for those exact dates and assigns it.
-4. **Handoff**: The Bot generates a URL pointing to the static GitHub Pages frontend.
-5. **Checkout**: The GitHub Pages site uses JavaScript (`fetch`) to call the FastAPI backend, displaying the booking details and completing the payload securely.
+4. **Cloud Database Sync**: Telegram bookings and food orders trigger an automated HTTP webhook via `requests`, instantly pasting the live data into staff's Google Sheets interface. Editing the Google Sheets pushes a payload back to the local database via `ngrok`.
+5. **Handoff**: The Bot generates a URL pointing to the static GitHub Pages frontend.
+6. **Checkout**: The GitHub Pages site uses JavaScript (`fetch`) to call the FastAPI backend, displaying the booking details and completing the payload securely.
 
 ## Setup & Startup Guide
 

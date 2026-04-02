@@ -40,10 +40,11 @@ huggingface_cache/
 logs/
 
 # =========================
-# Database
+# Database & User Data
 # =========================
 *.db
 *.sqlite3
+data/tickets/
 
 # =========================
 # IDE / Editor
@@ -90,3 +91,5 @@ build/
 # =========================
 *.tmp
 *.bak
+.cursorrules/
+cursorrules/

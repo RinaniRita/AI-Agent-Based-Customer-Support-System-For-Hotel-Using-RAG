@@ -1,6 +1,10 @@
 import sqlite3
 import os
 import logging
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+from backend.services.sheets_sync import sync_booking_to_sheet, sync_food_order_to_sheet
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +66,28 @@ def init_db():
             status          TEXT NOT NULL DEFAULT 'PENDING',
             created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS food_orders (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id         INTEGER NOT NULL,
+            room_number     INTEGER NOT NULL,
+            items           TEXT NOT NULL,
+            total_price     REAL NOT NULL DEFAULT 0,
+            status          TEXT NOT NULL DEFAULT 'RECEIVED',
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     """)
 
     conn.commit()
+
+    # ── Safe migration: add room_number if it was missing from old DBs ──
+    existing_cols = [row[1] for row in cursor.execute("PRAGMA table_info(food_orders)").fetchall()]
+    if 'room_number' not in existing_cols:
+        cursor.execute("ALTER TABLE food_orders ADD COLUMN room_number INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
+        logger.info("Migration applied: added room_number to food_orders.")
+
     conn.close()
     logger.info("Database initialized successfully.")
 
@@ -181,6 +204,32 @@ def update_booking_guest_info(booking_id, name, email, phone):
     """, (name, email, phone, booking_id))
     conn.commit()
     conn.close()
+    try:
+        sync_booking_to_sheet(get_booking(booking_id))
+    except Exception as e:
+        logger.error(f"Failed to sync booking {booking_id}: {e}")
+
+
+def update_booking_field(booking_id, field, value):
+    """Generic function to update a single field in a booking."""
+    conn = get_connection()
+    try:
+        # Check if column exists to prevent SQL injection or errors
+        cursor = conn.execute(f"PRAGMA table_info(bookings)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if field not in columns:
+            logger.error(f"Invalid field name: {field}")
+            return False
+
+        conn.execute(f"UPDATE bookings SET {field} = ? WHERE id = ?", (value, booking_id))
+        conn.commit()
+        logger.info(f"Updated booking #{booking_id} field '{field}' to '{value}'")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating booking field: {e}")
+        return False
+    finally:
+        conn.close()
 
 
 def confirm_booking(booking_id):
@@ -189,6 +238,10 @@ def confirm_booking(booking_id):
     conn.execute("UPDATE bookings SET status = 'CONFIRMED' WHERE id = ?", (booking_id,))
     conn.commit()
     conn.close()
+    try:
+        sync_booking_to_sheet(get_booking(booking_id))
+    except Exception as e:
+        logger.error(f"Failed to sync booking {booking_id}: {e}")
 
 
 def get_booking(booking_id):
@@ -200,6 +253,17 @@ def get_booking(booking_id):
         JOIN rooms r ON b.room_type = r.room_type
         WHERE b.id = ?
     """, (booking_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_active_booking_by_room(room_number):
+    """Retrieve an active confirmed booking for a given room number."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM bookings WHERE room_number = ? AND status = 'CONFIRMED'",
+        (room_number,)
+    ).fetchone()
     conn.close()
     return dict(row) if row else None
 
@@ -217,3 +281,83 @@ def create_service_request(telegram_id, request_type, details=""):
     conn.commit()
     conn.close()
     return req_id
+
+
+# ─── Food Order Queries ─────────────────────────────────────
+
+def create_food_order(chat_id, room_number, items_json, total_price):
+    """Create a food order and return its ID."""
+    conn = get_connection()
+    cursor = conn.execute(
+        "INSERT INTO food_orders (chat_id, room_number, items, total_price, status) VALUES (?, ?, ?, ?, 'RECEIVED')",
+        (chat_id, room_number, items_json, total_price)
+    )
+    order_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    try:
+        sync_food_order_to_sheet(get_food_order(order_id))
+    except Exception as e:
+        logger.error(f"Failed to sync food order {order_id}: {e}")
+    return order_id
+
+
+def update_food_order_status(order_id, new_status):
+    """Update the status of a food order. Returns the order row or None."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE food_orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (new_status, order_id)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM food_orders WHERE id = ?", (order_id,)).fetchone()
+    conn.close()
+    
+    res = dict(row) if row else None
+    if res:
+        try:
+            sync_food_order_to_sheet(res)
+        except Exception as e:
+            logger.error(f"Failed to sync food order {order_id}: {e}")
+    return res
+
+
+def get_food_order(order_id):
+    """Get a food order by ID."""
+    conn = get_connection()
+    row = conn.execute("SELECT * FROM food_orders WHERE id = ?", (order_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_active_food_orders(chat_id):
+    """Get all active (non-delivered) food orders for a chat."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM food_orders WHERE chat_id = ? AND status != 'DELIVERED' ORDER BY created_at DESC",
+        (chat_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def update_food_order_field(order_id, field, value):
+    """Generic function to update a single field in a food order."""
+    conn = get_connection()
+    try:
+        cursor = conn.execute(f"PRAGMA table_info(food_orders)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if field not in columns:
+            logger.error(f"Invalid field name: {field}")
+            return False
+
+        conn.execute(f"UPDATE food_orders SET {field} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (value, order_id))
+        conn.commit()
+        logger.info(f"Updated food order #{order_id} field '{field}' to '{value}'")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating food order field: {e}")
+        return False
+    finally:
+        conn.close()
+

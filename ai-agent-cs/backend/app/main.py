@@ -7,6 +7,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, Messa
 from .services.llm_client import llm_client
 from .services.rag_service import RAGService
 from .agent.customer_support_agent import CustomerSupportAgent
+from .agent.agent_router import process_agent_query
 from .config import TELEGRAM_BOT_TOKEN, FRONTEND_URL, API_BASE_URL
 
 # Database service
@@ -15,8 +16,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from backend.database.db_service import (
     init_db, create_booking, update_booking_dates,
     update_booking_guest_info, get_booking, get_room_info,
-    check_availability, get_available_room_numbers
+    check_availability, get_available_room_numbers,
+    create_food_order, get_active_food_orders, get_active_booking_by_room
 )
+import json
 
 # Initialize logging
 logging.basicConfig(
@@ -37,6 +40,64 @@ user_states = {}
 
 # Booking session tracking: { chat_id: { "booking_id": int, "room_type": str, "step": str } }
 booking_sessions = {}
+
+# Food order cart: { chat_id: { "items": [{"name": str, "price": float}], "pairings": [...] } }
+food_carts = {}
+
+# ── In-Room Dining Menu Data ────────────────────────────────
+DINING_MENU = {
+    "starters": {
+        "label": "🥗 Starters",
+        "items": [
+            {"id": "bruschetta",   "name": "Truffle Bruschetta",    "price": 18, "emoji": "🍞"},
+            {"id": "tartare",     "name": "Tuna Tartare",          "price": 24, "emoji": "🐟"},
+            {"id": "soup",        "name": "Lobster Bisque",        "price": 22, "emoji": "🍲"},
+        ]
+    },
+    "mains": {
+        "label": "🥩 Main Courses",
+        "items": [
+            {"id": "wagyu",       "name": "Wagyu Ribeye Steak",    "price": 85, "emoji": "🥩"},
+            {"id": "salmon",      "name": "Pan-Seared Salmon",     "price": 45, "emoji": "🐠"},
+            {"id": "risotto",     "name": "Black Truffle Risotto", "price": 38, "emoji": "🍚"},
+            {"id": "pasta",       "name": "Lobster Linguine",      "price": 42, "emoji": "🍝"},
+        ]
+    },
+    "desserts": {
+        "label": "🍰 Desserts",
+        "items": [
+            {"id": "tiramisu",    "name": "Classic Tiramisu",      "price": 16, "emoji": "🍰"},
+            {"id": "creme",       "name": "Crème Brûlée",         "price": 15, "emoji": "🍮"},
+            {"id": "chocolate",   "name": "Molten Chocolate Lava", "price": 18, "emoji": "🍫"},
+        ]
+    },
+    "drinks": {
+        "label": "🍷 Beverages",
+        "items": [
+            {"id": "wine_red",    "name": "Château Margaux (Red)",  "price": 35, "emoji": "🍷"},
+            {"id": "wine_white",  "name": "Chablis Premier Cru",    "price": 30, "emoji": "🥂"},
+            {"id": "champagne",   "name": "Moët & Chandon",         "price": 55, "emoji": "🍾"},
+            {"id": "water",       "name": "San Pellegrino Sparkling","price": 8,  "emoji": "💧"},
+        ]
+    }
+}
+
+# Wine pairing suggestions: dish_id → wine_id
+WINE_PAIRINGS = {
+    "wagyu":    {"wine": "wine_red",   "note": "Full-bodied red to complement the rich marbling"},
+    "salmon":   {"wine": "wine_white",  "note": "Crisp white to enhance the delicate flavors"},
+    "risotto":  {"wine": "wine_white",  "note": "Buttery white to match the truffle notes"},
+    "pasta":    {"wine": "wine_white",  "note": "Light white to balance the lobster richness"},
+    "tartare":  {"wine": "champagne",   "note": "Champagne pairs beautifully with raw fish"},
+}
+
+def _find_menu_item(item_id):
+    """Look up a menu item by its ID across all categories."""
+    for cat in DINING_MENU.values():
+        for item in cat["items"]:
+            if item["id"] == item_id:
+                return item
+    return None
 
 # Web server base URL (remove hardcoded local if needed, now using config)
 # FRONTEND_URL and API_BASE_URL imported from .config above
@@ -239,133 +300,206 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text=booking_prompt, reply_markup=cancel_kb, parse_mode="Markdown")
         
     elif data == "order_food":
+        # Show dining categories
         keyboard = [
-            [InlineKeyboardButton("🍔 Burger & Fries", callback_data="coming_soon")],
-            [InlineKeyboardButton("🔙 Back", callback_data="main_menu")]
+            [InlineKeyboardButton("🥗 Starters", callback_data="food_cat_starters")],
+            [InlineKeyboardButton("🥩 Main Courses", callback_data="food_cat_mains")],
+            [InlineKeyboardButton("🍰 Desserts", callback_data="food_cat_desserts")],
+            [InlineKeyboardButton("🍷 Beverages", callback_data="food_cat_drinks")],
+            [InlineKeyboardButton("🛒 View My Cart", callback_data="food_cart")],
+            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
         ]
+        # Initialize cart if not exists
+        if chat_id not in food_carts:
+            food_carts[chat_id] = {"items": []}
         await query.edit_message_text(
-            text="🍽️ **In-Room Dining**\n\nWhat would you like to order?",
+            text=(
+                "🍽️ *In-Room Dining — Apollo Hotel*\n\n"
+                "Welcome to our exclusive In-Room Dining experience.\n"
+                "Browse our curated menu below and add items to your cart.\n\n"
+                "_All dishes are freshly prepared by our award-winning chef._ ✨"
+            ),
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
-        if data == "ai_quick_services":
-            scripted_services = (
-                "✨ *Here is a complete overview of our services at Apollo Hotel:*\n\n"
-                "🏨 *Standard Guest Services*\n"
-                "• Check-in & Check-out\n"
-                "• Room Types & Reservations\n"
-                "• Concierge & Front Desk\n"
-                "• Housekeeping\n"
-                "• In-Room Dining\n"
-                "• Spa & Wellness\n"
-                "• Fitness Center\n"
-                "• Valet Parking & Transport\n"
-                "• Loyalty Programs\n"
-                "• In-Room Technology\n"
-                "• Payment & Billing\n"
-                "• Cancellation\n\n"
-                "💼 *Business Traveler Services*\n"
-                "• Business Center\n"
-                "• Meeting & Conference Rooms\n"
-                "• Executive Lounges\n"
-                "• Corporate Packages\n"
-                "• Printing & Office Services\n"
-                "• Secretarial Services\n"
-                "• Courier & Delivery\n\n"
-                "👨‍👩‍👧‍👦 *Family & Children Services*\n"
-                "• Family Suites\n"
-                "• Babysitting Services\n"
-                "• Child Dining Policies\n"
-                "• Child Safety\n\n"
-                "🌍 *International Guest Services*\n"
-                "• Multilingual Support\n"
-                "• Visa Information & Assistance\n"
-                "• International Payment Options\n"
-                "• Embassy & Consulate Contacts\n\n"
-                "🎉 *Promotions & Support*\n"
-                "• Current Promotions & Offers\n"
-                "• Complaints & Feedback\n"
-                "• Refunds & Dispute Resolution\n"
-                "• Escalation Handling\n\n"
-                "🗺️ *Local Area Information*\n"
-                "• Attractions & Sightseeing\n"
-                "• Local Transport\n"
-                "• Shopping\n"
-                "• Medical Services & Pharmacies\n\n"
-                "_Tap a suggested question below, or type your own!_ 😊"
-            )
-            # Suggested follow-up question buttons
-            suggested_keyboard = [
-                [InlineKeyboardButton("🕐 Check-in & Check-out times?", callback_data="svc_q_checkin")],
-                [InlineKeyboardButton("🍽️ What dining options are available?", callback_data="svc_q_dining")],
-                [InlineKeyboardButton("💆 Tell me about the Spa", callback_data="svc_q_spa")],
-                [InlineKeyboardButton("👶 Do you offer babysitting?", callback_data="svc_q_babysitting")],
-                [InlineKeyboardButton("💼 Meeting room options?", callback_data="svc_q_meetings")],
-                [InlineKeyboardButton("🚗 Airport transfer services?", callback_data="svc_q_transport")],
-                [InlineKeyboardButton("🎁 Any current promotions?", callback_data="svc_q_promos")],
-                [InlineKeyboardButton("🏋️ Fitness center details?", callback_data="svc_q_fitness")],
-                [InlineKeyboardButton("🔙 Return to Main Menu", callback_data="main_menu")]
+    elif data.startswith("food_cat_"):
+        # Show items in a specific category
+        cat_key = data.replace("food_cat_", "")
+        category = DINING_MENU.get(cat_key)
+        if not category:
+            return
+        keyboard = []
+        for item in category["items"]:
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"{item['emoji']} {item['name']} — €{item['price']}",
+                    callback_data=f"food_add_{item['id']}"
+                )
+            ])
+        keyboard.append([InlineKeyboardButton("🛒 View My Cart", callback_data="food_cart")])
+        keyboard.append([InlineKeyboardButton("🔙 Back to Menu", callback_data="order_food")])
+        await query.edit_message_text(
+            text=f"{category['label']}\n\n_Tap an item to add it to your cart:_",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    elif data.startswith("food_add_"):
+        # Add item to cart, then offer wine pairing if available
+        item_id = data.replace("food_add_", "")
+        item = _find_menu_item(item_id)
+        if not item:
+            return
+        if chat_id not in food_carts:
+            food_carts[chat_id] = {"items": []}
+        food_carts[chat_id]["items"].append({"id": item["id"], "name": item["name"], "price": item["price"]})
+        cart_count = len(food_carts[chat_id]["items"])
+
+        # Check for wine pairing
+        pairing = WINE_PAIRINGS.get(item_id)
+        if pairing:
+            wine = _find_menu_item(pairing["wine"])
+            keyboard = [
+                [InlineKeyboardButton(
+                    f"🍷 Add {wine['name']} — €{wine['price']} (Paired)",
+                    callback_data=f"food_add_{wine['id']}"
+                )],
+                [InlineKeyboardButton("🛒 View My Cart", callback_data="food_cart")],
+                [InlineKeyboardButton("🔙 Continue Browsing", callback_data="order_food")]
             ]
-            await query.edit_message_reply_markup(reply_markup=None)
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=scripted_services,
-                reply_markup=InlineKeyboardMarkup(suggested_keyboard),
+            await query.edit_message_text(
+                text=(
+                    f"✅ *{item['name']}* added to your cart! ({cart_count} items)\n\n"
+                    f"🍷 *Sommelier Suggestion:*\n"
+                    f"_{pairing['note']}_\n\n"
+                    f"Would you like to add a perfectly paired glass?"
+                ),
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )
-            return
-
-        # --- Scripted Response: Hotel Policies Overview ---
-        # Bypasses RAG to give guests the FULL, accurate policy details.
-        if data == "ai_quick_policies":
-            scripted_policies = (
-                "📜 *Apollo Hotel — Official Policies & House Rules*\n\n"
-                "🕐 *1. Arrival & Departure*\n"
-                "• *Check-In:* **2:00 PM** (14:00)\n"
-                "• *Check-Out:* **11:00 AM**\n"
-                "• *Late Check-Out:* Subject to availability; must be arranged with reception in advance (additional fee applies)\n"
-                "• *Minors:* Guests with children under 18 must present official documentation confirming their relationship\n\n"
-                "🐾 *2. Pet Policy*\n"
-                "• ⛔ **STRICTLY NO PETS** — Pets are not allowed under any circumstances\n"
-                "• Arriving with a pet may result in refusal of accommodation *without* a refund\n\n"
-                "🚭 *3. Smoking & Conduct*\n"
-                "• The entire hotel is **100% smoke-free** (including e-cigarettes and vapes)\n"
-                "• Violation penalty: **€250** deep-cleaning charge\n"
-                "• *Quiet Hours:* **10:00 PM – 6:00 AM** — please respect all guests\n\n"
-                "♿ *4. Accessibility*\n"
-                "• Wheelchair-accessible rooms and facilities available\n"
-                "• Please contact the front desk to arrange accessible accommodations\n\n"
-                "🌿 *5. Sustainability*\n"
-                "• Strict waste separation & recycling protocols\n"
-                "• Towel & bedding reuse program to conserve water\n"
-                "• Eco-friendly cleaning products used throughout\n"
-                "• Active food waste reduction programs\n\n"
-                "🔒 *6. Data Privacy & GDPR*\n"
-                "• Guest data is handled in full compliance with GDPR regulations\n"
-                "• Personal information is never shared with third parties without consent\n\n"
-                "⚖️ *7. Liability*\n"
-                "• The hotel is not responsible for valuables left unattended\n"
-                "• In-room safes are available for securing personal items\n\n"
-                "_Tap a question below for more details, or type your own!_ 😊"
-            )
-            suggested_keyboard = [
-                [InlineKeyboardButton("🕐 Check-in & check-out details?", callback_data="pol_q_checkin")],
-                [InlineKeyboardButton("🐾 What is the pet policy?", callback_data="pol_q_pets")],
-                [InlineKeyboardButton("🚭 Smoking rules & penalties?", callback_data="pol_q_smoking")],
-                [InlineKeyboardButton("♿ Accessibility options?", callback_data="pol_q_accessibility")],
-                [InlineKeyboardButton("🔒 Data privacy & GDPR?", callback_data="pol_q_gdpr")],
-                [InlineKeyboardButton("⚖️ Liability & lost items?", callback_data="pol_q_liability")],
-                [InlineKeyboardButton("🔙 Return to Main Menu", callback_data="main_menu")]
+        else:
+            keyboard = [
+                [InlineKeyboardButton("🛒 View My Cart", callback_data="food_cart")],
+                [InlineKeyboardButton("🔙 Continue Browsing", callback_data="order_food")]
             ]
-            await query.edit_message_reply_markup(reply_markup=None)
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=scripted_policies,
-                reply_markup=InlineKeyboardMarkup(suggested_keyboard),
+            await query.edit_message_text(
+                text=f"✅ *{item['name']}* added to your cart! ({cart_count} items)",
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )
+    elif data == "food_cart":
+        # Show cart contents
+        cart = food_carts.get(chat_id, {"items": []})
+        if not cart["items"]:
+            keyboard = [
+                [InlineKeyboardButton("🍽️ Browse Menu", callback_data="order_food")],
+                [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
+            ]
+            await query.edit_message_text(
+                text="🛒 *Your cart is empty.*\n\nBrowse our menu to add delicious items!",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        else:
+            lines = ["🛒 *Your Order:*\n"]
+            total = 0
+            for i, item in enumerate(cart["items"], 1):
+                lines.append(f"{i}. {item['name']} — €{item['price']}")
+                total += item["price"]
+            lines.append(f"\n💰 *Total: €{total}*")
+            keyboard = [
+                [InlineKeyboardButton("✅ Place Order", callback_data="food_confirm")],
+                [InlineKeyboardButton("🗑️ Clear Cart", callback_data="food_clear")],
+                [InlineKeyboardButton("🍽️ Add More Items", callback_data="order_food")]
+            ]
+            await query.edit_message_text(
+                text="\n".join(lines),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+    elif data == "food_clear":
+        food_carts[chat_id] = {"items": []}
+        keyboard = [
+            [InlineKeyboardButton("🍽️ Browse Menu", callback_data="order_food")],
+            [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
+        ]
+        await query.edit_message_text(
+            text="🗑️ Cart cleared!",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    elif data == "food_confirm":
+        # Place the order -> Intercept to ask for room number!
+        cart = food_carts.get(chat_id, {"items": []})
+        if not cart["items"]:
+            await query.edit_message_text(text="Your cart is empty!")
             return
+            
+        user_states[chat_id] = "WAITING_FOOD_ROOM_NUMBER"
+        keyboard = [[InlineKeyboardButton("🔙 Cancel Order", callback_data="food_cart")]]
+        
+        await query.edit_message_text(
+            text=(
+                "🛎️ *Almost done!*\n\n"
+                "To ensure we deliver your food to the right place and verify "
+                "your stay, please reply with your *Room Number* (e.g., 101)."
+            ),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+        return
 
+    # --- Scripted Response: Hotel Policies Overview ---
+    # Bypasses RAG to give guests the FULL, accurate policy details.
+    elif data == "ai_quick_policies":
+        scripted_policies = (
+            "📜 *Apollo Hotel — Official Policies & House Rules*\n\n"
+            "🕐 *1. Arrival & Departure*\n"
+            "• *Check-In:* **2:00 PM** (14:00)\n"
+            "• *Check-Out:* **11:00 AM**\n"
+            "• *Late Check-Out:* Subject to availability; must be arranged with reception in advance (additional fee applies)\n"
+            "• *Minors:* Guests with children under 18 must present official documentation confirming their relationship\n\n"
+            "🐾 *2. Pet Policy*\n"
+            "• ⛔ **STRICTLY NO PETS** — Pets are not allowed under any circumstances\n"
+            "• Arriving with a pet may result in refusal of accommodation *without* a refund\n\n"
+            "🚭 *3. Smoking & Conduct*\n"
+            "• The entire hotel is **100% smoke-free** (including e-cigarettes and vapes)\n"
+            "• Violation penalty: **€250** deep-cleaning charge\n"
+            "• *Quiet Hours:* **10:00 PM – 6:00 AM** — please respect all guests\n\n"
+            "♿ *4. Accessibility*\n"
+            "• Wheelchair-accessible rooms and facilities available\n"
+            "• Please contact the front desk to arrange accessible accommodations\n\n"
+            "🌿 *5. Sustainability*\n"
+            "• Strict waste separation & recycling protocols\n"
+            "• Towel & bedding reuse program to conserve water\n"
+            "• Eco-friendly cleaning products used throughout\n"
+            "• Active food waste reduction programs\n\n"
+            "🔒 *6. Data Privacy & GDPR*\n"
+            "• Guest data is handled in full compliance with GDPR regulations\n"
+            "• Personal information is never shared with third parties without consent\n\n"
+            "⚖️ *7. Liability*\n"
+            "• The hotel is not responsible for valuables left unattended\n"
+            "• In-room safes are available for securing personal items\n\n"
+            "_Tap a question below for more details, or type your own!_ 😊"
+        )
+        suggested_keyboard = [
+            [InlineKeyboardButton("🕐 Check-in & check-out details?", callback_data="pol_q_checkin")],
+            [InlineKeyboardButton("🐾 What is the pet policy?", callback_data="pol_q_pets")],
+            [InlineKeyboardButton("🚭 Smoking rules & penalties?", callback_data="pol_q_smoking")],
+            [InlineKeyboardButton("♿ Accessibility options?", callback_data="pol_q_accessibility")],
+            [InlineKeyboardButton("🔒 Data privacy & GDPR?", callback_data="pol_q_gdpr")],
+            [InlineKeyboardButton("⚖️ Liability & lost items?", callback_data="pol_q_liability")],
+            [InlineKeyboardButton("🔙 Return to Main Menu", callback_data="main_menu")]
+        ]
+        await query.edit_message_reply_markup(reply_markup=None)
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=scripted_policies,
+            reply_markup=InlineKeyboardMarkup(suggested_keyboard),
+            parse_mode="Markdown"
+        )
+        return
+
+    elif data.startswith("ai_quick_"):
         # --- RAG-Based Response: All other quick buttons ---
         prompt_map = {
             "ai_quick_contact": "Please provide the hotel's contact information and location.",
@@ -378,7 +512,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         logger.info(f"Processing AI quick button request: {user_message}")
         try:
-            # We edit the message to remove the buttons while processing, or just send a typing action
             await context.bot.send_chat_action(chat_id=chat_id, action="typing")
             await query.edit_message_reply_markup(reply_markup=None)
             
@@ -534,8 +667,108 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=get_main_menu_keyboard()
             )
 
-    elif data == "coming_soon" or data == "front_desk" or data == "human_support":
-        # Placeholder for other static menus
+    elif data == "ai_quick_services":
+        scripted_services = (
+            "✨ *Here is a complete overview of our services at Apollo Hotel:*\n\n"
+            "🏨 *Standard Guest Services*\n"
+            "• Check-in & Check-out\n"
+            "• Room Types & Reservations\n"
+            "• Concierge & Front Desk\n"
+            "• Housekeeping\n"
+            "• In-Room Dining\n"
+            "• Spa & Wellness\n"
+            "• Fitness Center\n"
+            "• Valet Parking & Transport\n"
+            "• Loyalty Programs\n"
+            "• In-Room Technology\n"
+            "• Payment & Billing\n"
+            "• Cancellation\n\n"
+            "💼 *Business Traveler Services*\n"
+            "• Business Center\n"
+            "• Meeting & Conference Rooms\n"
+            "• Executive Lounges\n"
+            "• Corporate Packages\n"
+            "• Printing & Office Services\n"
+            "• Secretarial Services\n"
+            "• Courier & Delivery\n\n"
+            "👨‍👩‍👧‍👦 *Family & Children Services*\n"
+            "• Family Suites\n"
+            "• Babysitting Services\n"
+            "• Child Dining Policies\n"
+            "• Child Safety\n\n"
+            "🌍 *International Guest Services*\n"
+            "• Multilingual Support\n"
+            "• Visa Information & Assistance\n"
+            "• International Payment Options\n"
+            "• Embassy & Consulate Contacts\n\n"
+            "🎉 *Promotions & Support*\n"
+            "• Current Promotions & Offers\n"
+            "• Complaints & Feedback\n"
+            "• Refunds & Dispute Resolution\n"
+            "• Escalation Handling\n\n"
+            "🗺️ *Local Area Information*\n"
+            "• Attractions & Sightseeing\n"
+            "• Local Transport\n"
+            "• Shopping\n"
+            "• Medical Services & Pharmacies\n\n"
+            "_Tap a suggested question below, or type your own!_ 😊"
+        )
+        # Suggested follow-up question buttons
+        suggested_keyboard = [
+            [InlineKeyboardButton("🕐 Check-in & Check-out times?", callback_data="svc_q_checkin")],
+            [InlineKeyboardButton("🍽️ What dining options are available?", callback_data="svc_q_dining")],
+            [InlineKeyboardButton("💆 Tell me about the Spa", callback_data="svc_q_spa")],
+            [InlineKeyboardButton("👶 Do you offer babysitting?", callback_data="svc_q_babysitting")],
+            [InlineKeyboardButton("💼 Meeting room options?", callback_data="svc_q_meetings")],
+            [InlineKeyboardButton("🚗 Airport transfer services?", callback_data="svc_q_transport")],
+            [InlineKeyboardButton("🎁 Any current promotions?", callback_data="svc_q_promos")],
+            [InlineKeyboardButton("🏋️ Fitness center details?", callback_data="svc_q_fitness")],
+            [InlineKeyboardButton("🔙 Return to Main Menu", callback_data="main_menu")]
+        ]
+        await query.edit_message_reply_markup(reply_markup=None)
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=scripted_services,
+            reply_markup=InlineKeyboardMarkup(suggested_keyboard),
+            parse_mode="Markdown"
+        )
+        return
+
+    elif data == "front_desk":
+        keyboard = [
+            [InlineKeyboardButton("🛎️ Request Extra Towels", callback_data="fd_towels")],
+            [InlineKeyboardButton("🧹 Housekeeping Request", callback_data="fd_housekeeping")],
+            [InlineKeyboardButton("🔕 Do Not Disturb (Toggle)", callback_data="fd_dnd")],
+            [InlineKeyboardButton("🕐 Late Check-Out Request", callback_data="fd_late_checkout")],
+            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+        ]
+        await query.edit_message_text(
+            text="🛎️ *Front Desk Services*\n\nHow can our front desk assist you today?",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    elif data.startswith("fd_"):
+        # Front desk service requests
+        service_map = {
+            "fd_towels": ("Extra Towels", "🛁 *Extra towels* will be delivered to your room within 15 minutes."),
+            "fd_housekeeping": ("Housekeeping", "🧹 *Housekeeping* has been notified. Your room will be serviced shortly."),
+            "fd_dnd": ("Do Not Disturb", "🔕 *Do Not Disturb* mode activated. All deliveries & housekeeping are paused until you disable it."),
+            "fd_late_checkout": ("Late Check-Out", "🕐 *Late check-out* request submitted. Our front desk will confirm availability shortly."),
+        }
+        svc = service_map.get(data)
+        if svc:
+            from backend.database.db_service import create_service_request
+            create_service_request(chat_id, svc[0], f"Requested via Telegram")
+            keyboard = [
+                [InlineKeyboardButton("🛎️ More Services", callback_data="front_desk")],
+                [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
+            ]
+            await query.edit_message_text(
+                text=f"✅ *Request Confirmed!*\n\n{svc[1]}\n\n_Request logged in our system._",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+    elif data == "coming_soon" or data == "human_support":
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]
         await query.edit_message_text(
             text="🚧 *This feature is currently under construction.*\n\nPlease return to the main menu.",
@@ -750,30 +983,112 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 del session["step_before_edit"]
             await send_booking_summary(context, chat_id, session)
             return
+            
+        # In-Room Dining: Waiting for Room Number to Verify & Dispatch
+        elif step == "WAITING_FOOD_ROOM_NUMBER":
+            room_input = user_message.strip()
+            cart = food_carts.get(chat_id, {"items": []})
+            
+            if not cart["items"]:
+                user_states[chat_id] = "MAIN_MENU"
+                await context.bot.send_message(chat_id, "Your cart is empty. Returning to main menu.")
+                return
+                
+            if not room_input.isdigit():
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="⚠️ Please enter a valid numerical room number (e.g. 101):"
+                )
+                return
+                
+            room_number = int(room_input)
+            booking = get_active_booking_by_room(room_number)
+            
+            if not booking:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        f"❌ *Verification Failed*\n\n"
+                        f"We could not find an active reservation for Room {room_number}.\n"
+                        f"Please ensure you are entered the correct room number, or contact the front desk."
+                    ),
+                    parse_mode="Markdown"
+                )
+                return
+                
+            # Guest Verified! Book the food.
+            total = sum(item["price"] for item in cart["items"])
+            items_json = json.dumps(cart["items"])
+            order_id = create_food_order(chat_id, room_number, items_json, total)
+            food_carts[chat_id] = {"items": []}  # Clear cart
+            user_states[chat_id] = "MAIN_MENU"
+            
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=(
+                    f"🎉 *Order #{order_id} Placed!*\n\n"
+                    f"👤 *Guest:* {booking['guest_name']}\n"
+                    f"🚪 *Room:* {room_number}\n"
+                    f"💰 *Total:* €{total}\n\n"
+                    "📡 *Live Tracking Activated*\n"
+                    "You will receive real-time updates as your meal is prepared:\n"
+                    "  🔔 Received → 🍳 Preparing → ✨ Plating → 🛎️ En Route → ✅ Delivered\n\n"
+                    "_Sit back and relax — your feast is on its way!_ 🥂"
+                ),
+                parse_mode="Markdown"
+            )
+            return
 
-    # ─── DEFAULT: AI CONCIERGE MODE ───
+    # ─── DEFAULT: AI AGENT MODE (LLM-driven tool calling) ───
     user_states[chat_id] = "AI_MODE"
-    logger.info(f"Processing AI chat request: {user_message[:50]}...")
-    user_context = {"session_id": str(chat_id), "user_id": update.effective_user.id}
+    logger.info(f"Processing AI Agent request: {user_message[:50]}...")
 
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
         result = await asyncio.to_thread(
-            support_agent.process_query,
+            process_agent_query,
             user_message,
-            user_context
+            chat_id
         )
 
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=result['response'],
-            reply_markup=get_ai_chat_keyboard(),
-            parse_mode="Markdown"
-        )
+        logger.info(f"[Agent] Intent={result.get('intent')}  Tool={result.get('tool_used')}")
+
+        # If the agent decided the user wants to BOOK, show the room-selection
+        # keyboard to funnel them into the existing booking flow.
+        if result.get("intent") == "BOOK":
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=result['response'],
+                reply_markup=get_rooms_keyboard(),
+                parse_mode="Markdown"
+            )
+        elif result.get("intent") == "ORDER_FOOD":
+            if chat_id not in food_carts:
+                food_carts[chat_id] = {"items": []}
+            keyboard = [
+                [InlineKeyboardButton("🥗 Starters", callback_data="food_cat_starters")],
+                [InlineKeyboardButton("🥩 Main Courses", callback_data="food_cat_mains")],
+                [InlineKeyboardButton("🍰 Desserts", callback_data="food_cat_desserts")],
+                [InlineKeyboardButton("🍷 Beverages", callback_data="food_cat_drinks")],
+                [InlineKeyboardButton("🛒 View My Cart", callback_data="food_cart")]
+            ]
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=result['response'],
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="Markdown"
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=result['response'],
+                reply_markup=get_ai_chat_keyboard(),
+                parse_mode="Markdown"
+            )
 
     except Exception as e:
-        logger.error(f"Error processing chat request: {e}", exc_info=True)
+        logger.error(f"Error processing AI Agent request: {e}", exc_info=True)
         await context.bot.send_message(chat_id=chat_id, text="Sorry, I encountered an error processing your request. Please try again.")
 
 async def send_booking_summary(context, chat_id, session):
@@ -793,6 +1108,60 @@ async def send_booking_summary(context, chat_id, session):
         parse_mode="Markdown"
     )
 
+# ─── Debug Shortcut Commands ────────────────────────────────
+
+async def cmd_order_food(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Direct shortcut to In-Room Dining Menu."""
+    chat_id = update.effective_chat.id
+    if chat_id not in food_carts:
+        food_carts[chat_id] = {"items": []}
+    keyboard = [
+        [InlineKeyboardButton("🥗 Starters", callback_data="food_cat_starters")],
+        [InlineKeyboardButton("🥩 Main Courses", callback_data="food_cat_mains")],
+        [InlineKeyboardButton("🍰 Desserts", callback_data="food_cat_desserts")],
+        [InlineKeyboardButton("🍷 Beverages", callback_data="food_cat_drinks")],
+        [InlineKeyboardButton("🛒 View My Cart", callback_data="food_cart")],
+        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+    ]
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=(
+            "🍽️ *In-Room Dining — Apollo Hotel*\n\n"
+            "Welcome to our exclusive In-Room Dining experience.\n"
+            "Browse our curated menu below and add items to your cart.\n\n"
+            "_All dishes are freshly prepared by our award-winning chef._ ✨"
+        ),
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def cmd_hotels_room(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Direct shortcut to view all rooms."""
+    chat_id = update.effective_chat.id
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="🏨 *Apollo Hotel Room Categories*\n\nPlease select a room type to view details:",
+        reply_markup=get_room_categories_keyboard(),
+        parse_mode="Markdown"
+    )
+
+async def cmd_front_desk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Direct shortcut to front desk services."""
+    chat_id = update.effective_chat.id
+    keyboard = [
+        [InlineKeyboardButton("🛎️ Request Extra Towels", callback_data="fd_towels")],
+        [InlineKeyboardButton("🧹 Housekeeping Request", callback_data="fd_housekeeping")],
+        [InlineKeyboardButton("🔕 Do Not Disturb (Toggle)", callback_data="fd_dnd")],
+        [InlineKeyboardButton("🕐 Late Check-Out Request", callback_data="fd_late_checkout")],
+        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+    ]
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text="🛎️ *Front Desk Services*\n\nHow can our front desk assist you today?",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
 def main():
     if not TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN is not set in environment or config.py")
@@ -802,6 +1171,12 @@ def main():
     
     # Core handlers
     application.add_handler(CommandHandler('start', start))
+    
+    # Debug shortcuts
+    application.add_handler(CommandHandler('order_food', cmd_order_food))
+    application.add_handler(CommandHandler('hotels_room', cmd_hotels_room))
+    application.add_handler(CommandHandler('front_desk', cmd_front_desk))
+    
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     

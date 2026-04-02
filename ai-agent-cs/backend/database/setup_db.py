@@ -52,9 +52,18 @@ def seed_all():
                 VALUES (?, ?)
             """, (room_number, room_type))
 
+    # 3. Seed a dummy active guest in Room 101 for testing In-Room Dining validation
+    conn.execute("""
+        INSERT OR IGNORE INTO bookings 
+        (telegram_id, room_type, room_number, guest_name, guest_email, guest_phone, check_in, check_out, nights, total_price, status)
+        VALUES (?, ?, ?, ?, ?, ?, date('now'), date('now', '+3 days'), ?, ?, ?)
+    """, (
+        123456789, "standard", 101, "Jane Doe", "jane@example.com", "+1234567890", 3, 381.0, "CONFIRMED"
+    ))
+
     conn.commit()
     conn.close()
-    print(f"✅ Seeded {len(ROOM_TYPES)} room types and {len(ROOM_TYPES) * 5} physical rooms.")
+    print(f"✅ Seeded {len(ROOM_TYPES)} room types, {len(ROOM_TYPES) * 5} physical rooms, and 1 active guest (Room 101).")
 
 
 if __name__ == "__main__":
