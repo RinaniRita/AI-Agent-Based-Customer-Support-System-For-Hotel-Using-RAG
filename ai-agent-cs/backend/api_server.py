@@ -11,14 +11,19 @@ from pydantic import BaseModel
 from telegram import Bot
 import httpx
 
-# Import database service
-import sys
+# Import Database service
+import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from backend.database.db_service import (
-    get_booking, confirm_booking, init_db, update_food_order_status, 
-    get_active_food_orders, update_booking_field, update_food_order_field
+    init_db, create_booking, update_booking_dates,
+    update_booking_guest_info, get_booking, get_room_info,
+    check_availability, get_available_room_numbers,
+    create_food_order, get_active_food_orders, get_active_booking_by_room
 )
-from backend.app.config import TELEGRAM_BOT_TOKEN
+from backend.services.food_service import check_food_inventory, suggest_alternative_food
+from backend.services.room_service import check_room_availability, get_room_status
+from backend.services.order_service import get_order_status
+from backend.config import TELEGRAM_BOT_TOKEN
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +32,8 @@ app = FastAPI(title="Luxury Hotel API")
 # Enable CORS for GitHub pages frontend!
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://rinanirita.github.io",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000"
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*", "ngrok-skip-browser-warning"],
 )
@@ -136,6 +137,74 @@ async def update_order_status(update: OrderUpdate):
 
     return {"status": "success", "message": "Guest notified instantly."}
 
+# ─── ROOM / FOOD / ORDER STATUS ROUTES ───────────────────────
+
+@app.get("/api/room/{room_number}/availability")
+async def api_check_room_availability(room_number: int):
+    """Check if a physical room is available right now."""
+    available = check_room_availability(room_number)
+    return {
+        "room_number": room_number,
+        "available": available,
+        "message": f"Room {room_number} is {'available' if available else 'currently booked'}."
+    }
+
+@app.get("/api/room/{room_number}/status")
+async def api_get_room_status(room_number: int):
+    """Get the live status of a physical room."""
+    status = get_room_status(room_number)
+    status_labels = {
+        "available": "Room is currently available.",
+        "booked": "Room is currently booked.",
+        "check_in": "Room is currently occupied (checked in).",
+        "check_out": "Room is being prepared after check-out.",
+    }
+    return {
+        "room_number": room_number,
+        "status": status,
+        "message": status_labels.get(status, f"Room status: {status}")
+    }
+
+@app.get("/api/food/inventory")
+async def api_get_food_inventory():
+    """Return the full food inventory from the database."""
+    conn = get_connection()
+    rows = conn.execute("SELECT item_name, category, price, stock FROM food_menu ORDER BY category").fetchall()
+    conn.close()
+    return {"items": [dict(r) for r in rows]}
+
+@app.get("/api/food/{item_name}/availability")
+async def api_check_food_availability(item_name: str):
+    """Check if a specific food item is in stock."""
+    in_stock = check_food_inventory(item_name)
+    alternatives = []
+    if not in_stock:
+        alternatives = suggest_alternative_food(item_name)
+    return {
+        "item_name": item_name,
+        "in_stock": in_stock,
+        "alternatives": alternatives
+    }
+
+@app.get("/api/order/{order_id}/status")
+async def api_get_order_status(order_id: int):
+    """Return the current status of a food order."""
+    status = get_order_status(order_id)
+    if not status:
+        return JSONResponse({"error": "Order not found"}, status_code=404)
+    status_labels = {
+        "pending": "Your order is pending.",
+        "preparing": "Your order is being prepared.",
+        "delivering": "Your order is on the way.",
+        "completed": "Your order has been delivered.",
+        "cancelled": "Your order has been cancelled.",
+    }
+    return {
+        "order_id": order_id,
+        "status": status,
+        "message": status_labels.get(status, f"Order status: {status}")
+    }
+
 # ─── GOOGLE SHEETS WEBHOOK ENDPOINT ─────────────────────────
 
 @app.post("/webhook/sheets-edit")
@@ -180,6 +249,49 @@ async def sheets_webhook(request: Request):
 
         if success:
             logger.info(f"Succesfully synced {target_type} #{row_id} update from Sheets.")
+            
+            # --- REAL-TIME TELEGRAM PUSH NOTIFICATION LOGIC ---
+            if db_field == "status" and TELEGRAM_BOT_TOKEN:
+                try:
+                    bot = Bot(token=TELEGRAM_BOT_TOKEN)
+                    msg_value = str(value).upper().strip()
+                    chat_id = None
+                    text = None
+                    
+                    if target_type == "booking":
+                        booking = get_booking(row_id)
+                        if booking and booking.get("telegram_id"):
+                            chat_id = booking["telegram_id"]
+                            b_map = {
+                                "CHECK IN": "🛎️ *Welcome to Luxury Hotel!*\nYou have successfully Checked In to your room. Enjoy your stay!",
+                                "CHECK_IN": "🛎️ *Welcome to Luxury Hotel!*\nYou have successfully Checked In to your room. Enjoy your stay!",
+                                "CHECK OUT": "👋 *Thank you for staying with us!*\nYour Check Out is complete. Have a safe journey!",
+                                "CHECK_OUT": "👋 *Thank you for staying with us!*\nYour Check Out is complete. Have a safe journey!",
+                                "CANCELLED": "❌ *Booking Cancelled*\nYour room booking has been successfully cancelled. We hope to see you another time.",
+                                "PAYMENT_RECEIVED": "✅ *Payment Confirmed*\nWe have received your room payment securely. Thank you!",
+                                "PAYMENT RECEIVED": "✅ *Payment Confirmed*\nWe have received your room payment securely. Thank you!"
+                            }
+                            text = b_map.get(msg_value)
+                            
+                    elif target_type == "food_order":
+                        order = get_food_order(row_id)
+                        if order and order.get("chat_id"):
+                            chat_id = order["chat_id"]
+                            f_map = {
+                                "DELIVERED": "✅ *Order Delivered!*\nEnjoy your fantastic meal.",
+                                "CANCELLED": "❌ *Order Cancelled*\nYour food order has been securely cancelled.",
+                                "PAYMENT_RECEIVED": "✅ *Payment Confirmed*\nWe have received your in-room dining payment!",
+                                "PAYMENT RECEIVED": "✅ *Payment Confirmed*\nWe have received your in-room dining payment!"
+                            }
+                            text = f_map.get(msg_value)
+                            
+                    if text and chat_id:
+                        await bot.send_message(chat_id=chat_id, text=text, parse_mode="Markdown")
+                        logger.info(f"Pushed live Telegram notification to {chat_id} for Status: {msg_value}")
+                except Exception as notify_e:
+                    logger.error(f"Failed to push Telegram notification: {notify_e}")
+            # --- END PUSH LOGIC ---
+
             return {"status": "success", "message": f"{target_type} updated"}
         else:
             return JSONResponse({"error": "Failed to update database"}, status_code=500)

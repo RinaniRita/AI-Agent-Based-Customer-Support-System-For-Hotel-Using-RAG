@@ -1,0 +1,20 @@
+[
+    {
+        "id": 10001,
+        "chat_id": 123456789,
+        "booking_id": 1,
+        "room_number": 401,
+        "items": "[{\"name\": \"Tonkotsu Ramen\", \"price\": 32.0, \"quantity\": 1}]",
+        "total_price": 32.0,
+        "status": "DELIVERED"
+    },
+    {
+        "id": 10002,
+        "chat_id": 987654321,
+        "booking_id": 2,
+        "room_number": 204,
+        "items": "[{\"name\": \"Margherita Pizza\", \"price\": 45.0, \"quantity\": 2}]",
+        "total_price": 90.0,
+        "status": "PREPARING"
+    }
+]

@@ -1,0 +1,58 @@
+[
+    {
+        "room_type": "standard",
+        "display_name": "Standard Double/Twin Room",
+        "price_per_night": 127,
+        "max_occupancy": 2,
+        "floor_number": 1
+    },
+    {
+        "room_type": "comfort",
+        "display_name": "Comfort Double/Twin Room",
+        "price_per_night": 142,
+        "max_occupancy": 2,
+        "floor_number": 2
+    },
+    {
+        "room_type": "superior",
+        "display_name": "Superior Room",
+        "price_per_night": 168,
+        "max_occupancy": 2,
+        "floor_number": 3
+    },
+    {
+        "room_type": "junior_suite",
+        "display_name": "Junior Suite",
+        "price_per_night": 175,
+        "max_occupancy": 4,
+        "floor_number": 4
+    },
+    {
+        "room_type": "standard_extra",
+        "display_name": "Standard Room + Extra Bed",
+        "price_per_night": 183,
+        "max_occupancy": 3,
+        "floor_number": 5
+    },
+    {
+        "room_type": "sup_balcony",
+        "display_name": "Superior Room with Balcony",
+        "price_per_night": 235,
+        "max_occupancy": 2,
+        "floor_number": 6
+    },
+    {
+        "room_type": "sup_panoramic",
+        "display_name": "Superior Panoramic Window + Balcony",
+        "price_per_night": 235,
+        "max_occupancy": 2,
+        "floor_number": 7
+    },
+    {
+        "room_type": "sup_suite",
+        "display_name": "Superior Suite",
+        "price_per_night": 235,
+        "max_occupancy": 4,
+        "floor_number": 8
+    }
+]

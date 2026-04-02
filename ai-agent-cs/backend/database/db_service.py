@@ -77,16 +77,27 @@ def init_db():
             created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS food_menu (
+            item_name       TEXT PRIMARY KEY,
+            category        TEXT NOT NULL,
+            price           REAL NOT NULL,
+            stock           INTEGER NOT NULL DEFAULT 0
+        );
     """)
 
     conn.commit()
 
-    # ── Safe migration: add room_number if it was missing from old DBs ──
+    # ── Safe migrations ──
     existing_cols = [row[1] for row in cursor.execute("PRAGMA table_info(food_orders)").fetchall()]
     if 'room_number' not in existing_cols:
         cursor.execute("ALTER TABLE food_orders ADD COLUMN room_number INTEGER NOT NULL DEFAULT 0")
         conn.commit()
         logger.info("Migration applied: added room_number to food_orders.")
+    if 'booking_id' not in existing_cols:
+        cursor.execute("ALTER TABLE food_orders ADD COLUMN booking_id INTEGER")
+        conn.commit()
+        logger.info("Migration applied: added booking_id to food_orders.")
 
     conn.close()
     logger.info("Database initialized successfully.")
@@ -258,10 +269,10 @@ def get_booking(booking_id):
 
 
 def get_active_booking_by_room(room_number):
-    """Retrieve an active confirmed booking for a given room number."""
+    """Retrieve an active Checked In booking for a given room number."""
     conn = get_connection()
     row = conn.execute(
-        "SELECT * FROM bookings WHERE room_number = ? AND status = 'CONFIRMED'",
+        "SELECT * FROM bookings WHERE room_number = ? AND status IN ('CHECK_IN', 'CHECK IN')",
         (room_number,)
     ).fetchone()
     conn.close()
@@ -283,14 +294,53 @@ def create_service_request(telegram_id, request_type, details=""):
     return req_id
 
 
+# ─── User-Based Access Control ──────────────────────────────
+
+def get_booking_by_user(user_id: int):
+    """Fetch the most relevant active booking for a Telegram user — CHECK_IN first, then latest."""
+    conn = get_connection()
+    row = conn.execute("""
+        SELECT b.*, r.display_name, r.price_per_night
+        FROM bookings b
+        JOIN rooms r ON b.room_type = r.room_type
+        WHERE b.telegram_id = ?
+          AND b.status NOT IN ('CANCELLED', 'CHECK_OUT', 'CHECK OUT', 'PENDING_INFO', 'PENDING_GUEST_INFO')
+        ORDER BY
+            CASE
+                WHEN UPPER(b.status) IN ('CHECK_IN', 'CHECK IN') THEN 0
+                WHEN UPPER(b.status) = 'CONFIRMED' THEN 1
+                WHEN UPPER(b.status) IN ('PAYMENT_RECEIVED', 'PAYMENT RECEIVED') THEN 2
+                ELSE 3
+            END ASC,
+            b.created_at DESC
+        LIMIT 1
+    """, (user_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def validate_user_booking(user_id: int) -> bool:
+    """Returns True if user has any active booking."""
+    return get_booking_by_user(user_id) is not None
+
+
+def can_order_food(user_id: int) -> bool:
+    """Returns True only if the user's active booking has status CHECK_IN."""
+    booking = get_booking_by_user(user_id)
+    if not booking:
+        return False
+    status = booking["status"].upper().strip()
+    return status in ("CHECK_IN", "CHECK IN")
+
+
 # ─── Food Order Queries ─────────────────────────────────────
 
-def create_food_order(chat_id, room_number, items_json, total_price):
-    """Create a food order and return its ID."""
+def create_food_order(chat_id, room_number, items_json, total_price, booking_id=None):
+    """Create a food order linked to a booking and return its ID."""
     conn = get_connection()
     cursor = conn.execute(
-        "INSERT INTO food_orders (chat_id, room_number, items, total_price, status) VALUES (?, ?, ?, ?, 'RECEIVED')",
-        (chat_id, room_number, items_json, total_price)
+        "INSERT INTO food_orders (chat_id, room_number, items, total_price, status, booking_id) VALUES (?, ?, ?, ?, 'RECEIVED', ?)",
+        (chat_id, room_number, items_json, total_price, booking_id)
     )
     order_id = cursor.lastrowid
     conn.commit()

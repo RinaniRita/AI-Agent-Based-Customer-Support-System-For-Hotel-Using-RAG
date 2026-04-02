@@ -6,9 +6,14 @@ Python tool (database function).  Falls back to plain Ollama chat
 for general questions.
 
 Tools:
-    1. get_rooms()        — list every room type from SQLite
-    2. recommend_room()   — rooms that fit a budget
-    3. book_room()        — kick off the booking flow
+    1. get_rooms()              — list every room type from SQLite
+    2. recommend_room()         — rooms that fit a budget
+    3. book_room()              — kick off the booking flow
+    4. check_room_availability  — is room X free right now?
+    5. get_room_status          — what is the live status of room X?
+    6. check_food_inventory     — is food item Y in stock?
+    7. suggest_alternative_food — recommends alternatives if out of stock
+    8. get_order_status         — look up food order by ID
 """
 
 import re
@@ -19,13 +24,19 @@ from ..services.llm_client import llm_client
 from ..services.rag_service import RAGService
 from ..config import OLLAMA_BASE_URL, OLLAMA_MODEL
 
-# Database helpers (already battle-tested in your project)
+# Database helpers
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from backend.database.db_service import (
     get_connection, create_booking, update_booking_guest_info,
-    get_room_info, check_availability
+    get_room_info, check_availability, get_active_booking_by_room, get_food_order
 )
+
+# ── Service Layer (modular, SQLite backed) ──────────────────────
+from backend.services.food_service import check_food_inventory, suggest_alternative_food
+from backend.services.room_service import check_room_availability, get_room_status
+from backend.services.order_service import get_order_status
+from backend.services.user_service import get_my_booking_info, check_food_order_permission
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +121,9 @@ def classify_intent(user_input: str) -> str:
         raw = response["message"]["content"].strip().upper()
         # Sanitise: take only the first word in case Ollama adds extras
         label = raw.split()[0] if raw else "GENERAL"
-        if label not in ("GET_ROOMS", "RECOMMEND", "BOOK", "ORDER_FOOD", "GENERAL"):
+        allowed = ("GET_ROOMS", "RECOMMEND", "BOOK", "ORDER_FOOD", "MY_BOOKING",
+                   "FOOD_AVAILABILITY", "ORDER_STATUS", "ROOM_AVAILABILITY", "ROOM_STATUS", "GENERAL")
+        if label not in allowed:
             logger.warning(f"Unexpected intent label '{label}', falling back to GENERAL")
             label = "GENERAL"
         return label
@@ -120,11 +133,10 @@ def classify_intent(user_input: str) -> str:
 
 
 # ──────────────────────────────────────────────
-#  BUDGET PARSER  (extract number from text)
+#  EXTRACTORS  (Regex to pull variables from text)
 # ──────────────────────────────────────────────
 def _extract_budget(text: str) -> Optional[float]:
     """Try to pull a numeric budget from the user's message."""
-    # Match patterns like "under 150", "below 200", "max 100", "budget 180", or just bare numbers near currency words
     patterns = [
         r"(?:under|below|max|budget|within|up\s*to|less\s*than|cheaper\s*than)\s*[€$£]?\s*(\d+(?:\.\d+)?)",
         r"[€$£]\s*(\d+(?:\.\d+)?)",
@@ -135,6 +147,33 @@ def _extract_budget(text: str) -> Optional[float]:
         m = re.search(pat, text, re.IGNORECASE)
         if m:
             return float(m.group(1))
+    return None
+
+def _extract_room_number(text: str) -> Optional[int]:
+    """Extract room number like 'room 101'."""
+    m = re.search(r"room\s*#?\s*(\d+)", text, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"\b(\d{2,4})\b", text)
+    return int(m.group(1)) if m else None
+
+def _extract_order_id(text: str) -> Optional[int]:
+    """Extract order ID like 'order 5'."""
+    m = re.search(r"order\s*#?\s*(\d+)", text, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"\b(\d{1,5})\b", text)
+    return int(m.group(1)) if m else None
+
+def _extract_food_item(text: str) -> Optional[str]:
+    """Scan user message for a known food item from the food_menu SQL table."""
+    text_lower = text.lower()
+    conn = get_connection()
+    rows = conn.execute("SELECT item_name FROM food_menu").fetchall()
+    conn.close()
+    for row in rows:
+        if row["item_name"].lower() in text_lower:
+            return row["item_name"]
     return None
 
 
@@ -241,6 +280,107 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
             "tool_used": "order_food",
             "tool_result": None,
         }
+
+    # ── ROOM_AVAILABILITY ──
+    elif intent == "ROOM_AVAILABILITY":
+        room_no = _extract_room_number(user_input)
+        if not room_no:
+            return {
+                "response": "I see you're asking about room availability. Could you please provide the room number?",
+                "intent": intent, "tool_used": "check_room_availability", "tool_result": None
+            }
+        booking = get_active_booking_by_room(room_no)
+        # If there's an active booking that isn't cancelled, it's booked.
+        if booking and booking["status"] != "CANCELLED":
+            resp = f"Room {room_no} is already booked at that time."
+        else:
+            resp = f"Room {room_no} is available at that time."
+        return {"response": resp, "intent": intent, "tool_used": "check_room_availability", "tool_result": (room_no, True)}
+
+    # ── ROOM_STATUS ──
+    elif intent == "ROOM_STATUS":
+        room_no = _extract_room_number(user_input)
+        if not room_no:
+            return {
+                "response": "Could you please specify which room number you'd like the status for?",
+                "intent": intent, "tool_used": "get_room_status", "tool_result": None
+            }
+        booking = get_active_booking_by_room(room_no)
+        if not booking or booking["status"] == "CANCELLED":
+            resp = f"Room {room_no} is currently available."
+        else:
+            status = booking["status"].upper().strip()
+            if status == "CHECK_IN" or status == "CHECK IN":
+                resp = f"Room {room_no} is currently occupied (checked in)."
+            elif status == "CHECK_OUT" or status == "CHECK OUT":
+                resp = f"Room {room_no} is being prepared after check-out."
+            else:
+                resp = f"Room {room_no} is currently booked."
+            # Maintenance check explicitly omitted as it isn't part of active db flows, but logic is easy to add!
+        return {"response": resp, "intent": intent, "tool_used": "get_room_status", "tool_result": room_no}
+
+    # ── ORDER_STATUS ──
+    elif intent == "ORDER_STATUS":
+        order_id = _extract_order_id(user_input)
+        if not order_id:
+            return {
+                "response": "I'd be happy to check your food status! Could you provide your order number?",
+                "intent": intent, "tool_used": "get_order_status", "tool_result": None
+            }
+        order = get_food_order(order_id)
+        if not order:
+            resp = "I couldn't find that information. Could you please check the details?"
+        else:
+            status = order["status"].lower().strip()
+            if "pending" in status or "received" in status:
+                resp = "Your order is pending."
+            elif "preparing" in status or "plating" in status:
+                resp = "Your order is being prepared."
+            elif "en_route" in status or "delivering" in status:
+                resp = "Your order is on the way."
+            elif "delivered" in status or "completed" in status:
+                resp = "Your order has been delivered."
+            elif "cancelled" in status:
+                resp = "Your order has been cancelled."
+            else:
+                resp = "Your order is pending." # Safe fallback
+        return {"response": resp, "intent": intent, "tool_used": "get_order_status", "tool_result": order_id}
+
+    # ── FOOD_AVAILABILITY ──
+    elif intent == "FOOD_AVAILABILITY":
+        item_name = _extract_food_item(user_input)
+        if not item_name:
+            resp = "I couldn't find that item. Could you try another one?"
+        else:
+            is_available = check_food_inventory(item_name)
+            if is_available:
+                resp = f"Yes, we currently have {item_name.title()} available."
+            else:
+                alts = suggest_alternative_food(item_name)
+                alts_str = ", ".join(alts) if alts else "other delicious options on our menu"
+                resp = f"Sorry, {item_name.title()} is currently out of stock.\nHowever, you may like: {alts_str}."
+        return {"response": resp, "intent": intent, "tool_used": "check_food_inventory", "tool_result": item_name}
+
+    # ── MY_BOOKING ──
+    elif intent == "MY_BOOKING":
+        booking_info = get_my_booking_info(chat_id)
+        if not booking_info:
+            resp = (
+                "ℹ️ You don't have any active booking linked to your account.\n\n"
+                "_Type \"Book a room\" to start a reservation!_"
+            )
+        else:
+            resp = (
+                f"📝 *Your Current Booking*\n\n"
+                f"🔑 *Booking ID:* #{booking_info['booking_id']}\n"
+                f"🛊 *Room:* #{booking_info['room_number']} ({booking_info['room_type']})\n"
+                f"📊 *Status:* {booking_info['status_label']}\n"
+                f"📅 *Check-in:* {booking_info['check_in'] or 'N/A'}\n"
+                f"📅 *Check-out:* {booking_info['check_out'] or 'N/A'}\n"
+                f"🌙 *Nights:* {booking_info['nights'] or 'N/A'}\n"
+                f"💰 *Total:* €{booking_info['total_price'] or 'N/A'}"
+            )
+        return {"response": resp, "intent": intent, "tool_used": "get_booking_by_user", "tool_result": booking_info}
 
     # ── GENERAL (RAG-grounded response for hotel knowledge) ──
     else:

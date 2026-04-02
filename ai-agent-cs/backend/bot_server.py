@@ -12,7 +12,7 @@ from .config import TELEGRAM_BOT_TOKEN, FRONTEND_URL, API_BASE_URL
 
 # Database service
 import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from backend.database.db_service import (
     init_db, create_booking, update_booking_dates,
     update_booking_guest_info, get_booking, get_room_info,
@@ -428,22 +428,45 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
     elif data == "food_confirm":
-        # Place the order -> Intercept to ask for room number!
+        # Place the order — auto-verify via Telegram ID (no room number prompt needed!)
+        from backend.services.user_service import check_food_order_permission
         cart = food_carts.get(chat_id, {"items": []})
         if not cart["items"]:
             await query.edit_message_text(text="Your cart is empty!")
             return
-            
-        user_states[chat_id] = "WAITING_FOOD_ROOM_NUMBER"
-        keyboard = [[InlineKeyboardButton("🔙 Cancel Order", callback_data="food_cart")]]
-        
+
+        permission = check_food_order_permission(chat_id)
+
+        if not permission["allowed"]:
+            food_carts[chat_id] = {"items": []}
+            user_states[chat_id] = "MAIN_MENU"
+            await query.edit_message_text(
+                text=f"❌ *Order Denied*\n\n{permission['message']}",
+                parse_mode="Markdown"
+            )
+            return
+
+        # Verified! Auto-fill room and booking from the user's active booking
+        booking = permission["booking"]
+        room_number = booking["room_number"]
+        booking_id = booking["id"]
+        total = sum(item["price"] for item in cart["items"])
+        items_json = json.dumps(cart["items"])
+        order_id = create_food_order(chat_id, room_number, items_json, total, booking_id)
+        food_carts[chat_id] = {"items": []}
+        user_states[chat_id] = "MAIN_MENU"
+
         await query.edit_message_text(
             text=(
-                "🛎️ *Almost done!*\n\n"
-                "To ensure we deliver your food to the right place and verify "
-                "your stay, please reply with your *Room Number* (e.g., 101)."
+                f"🎉 *Order #{order_id} Placed!*\n\n"
+                f"👤 *Guest:* {booking['guest_name']}\n"
+                f"🚪 *Room:* {room_number}\n"
+                f"💰 *Total:* €{total}\n\n"
+                "📡 *Live Tracking Activated*\n"
+                "You will receive real-time updates as your meal is prepared:\n"
+                "  🔔 Received → 🍳 Preparing → ✨ Plating → 🛎️ En Route → ✅ Delivered\n\n"
+                "_Sit back and relax — your feast is on its way!_ 🥂"
             ),
-            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
         return
@@ -984,45 +1007,41 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await send_booking_summary(context, chat_id, session)
             return
             
-        # In-Room Dining: Waiting for Room Number to Verify & Dispatch
-        elif step == "WAITING_FOOD_ROOM_NUMBER":
-            room_input = user_message.strip()
+        # In-Room Dining: Confirm order — auto-lookup from Telegram ID
+        elif step == "WAITING_FOOD_CONFIRM":
             cart = food_carts.get(chat_id, {"items": []})
-            
+
             if not cart["items"]:
                 user_states[chat_id] = "MAIN_MENU"
                 await context.bot.send_message(chat_id, "Your cart is empty. Returning to main menu.")
                 return
-                
-            if not room_input.isdigit():
+
+            # ── Security: verify Telegram ID has a checked-in booking ──
+            from backend.services.user_service import check_food_order_permission
+            from backend.database.db_service import get_booking_by_user, can_order_food
+            permission = check_food_order_permission(chat_id)
+
+            if not permission["allowed"]:
+                user_states[chat_id] = "MAIN_MENU"
+                food_carts[chat_id] = {"items": []}
                 await context.bot.send_message(
                     chat_id=chat_id,
-                    text="⚠️ Please enter a valid numerical room number (e.g. 101):"
-                )
-                return
-                
-            room_number = int(room_input)
-            booking = get_active_booking_by_room(room_number)
-            
-            if not booking:
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=(
-                        f"❌ *Verification Failed*\n\n"
-                        f"We could not find an active reservation for Room {room_number}.\n"
-                        f"Please ensure you are entered the correct room number, or contact the front desk."
-                    ),
+                    text=f"❌ *Order Denied*\n\n{permission['message']}",
                     parse_mode="Markdown"
                 )
                 return
-                
-            # Guest Verified! Book the food.
+
+            booking = permission["booking"]
+            room_number = booking["room_number"]
+            booking_id = booking["id"]
+
+            # ── All checks passed — place the order ──
             total = sum(item["price"] for item in cart["items"])
             items_json = json.dumps(cart["items"])
-            order_id = create_food_order(chat_id, room_number, items_json, total)
-            food_carts[chat_id] = {"items": []}  # Clear cart
+            order_id = create_food_order(chat_id, room_number, items_json, total, booking_id)
+            food_carts[chat_id] = {"items": []}
             user_states[chat_id] = "MAIN_MENU"
-            
+
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=(

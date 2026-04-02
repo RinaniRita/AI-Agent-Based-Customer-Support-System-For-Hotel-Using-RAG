@@ -1,0 +1,62 @@
+[
+    {
+        "item_name": "Margherita Pizza",
+        "category": "Pizza",
+        "price": 45.0,
+        "stock": 10
+    },
+    {
+        "item_name": "Pepperoni Pizza",
+        "category": "Pizza",
+        "price": 50.0,
+        "stock": 0
+    },
+    {
+        "item_name": "Spaghetti Carbonara",
+        "category": "Pasta",
+        "price": 35.0,
+        "stock": 15
+    },
+    {
+        "item_name": "Truffle Mushroom Pasta",
+        "category": "Pasta",
+        "price": 40.0,
+        "stock": 8
+    },
+    {
+        "item_name": "Spicy Tuna Sushi",
+        "category": "Sushi",
+        "price": 30.0,
+        "stock": 5
+    },
+    {
+        "item_name": "Salmon Sashimi",
+        "category": "Sushi",
+        "price": 38.0,
+        "stock": 0
+    },
+    {
+        "item_name": "Vegetarian Ramen",
+        "category": "Ramen",
+        "price": 28.0,
+        "stock": 12
+    },
+    {
+        "item_name": "Tonkotsu Ramen",
+        "category": "Ramen",
+        "price": 32.0,
+        "stock": 8
+    },
+    {
+        "item_name": "Caesar Salad",
+        "category": "Healthy",
+        "price": 20.0,
+        "stock": 20
+    },
+    {
+        "item_name": "Classic Cheeseburger",
+        "category": "Burger",
+        "price": 25.0,
+        "stock": 15
+    }
+]

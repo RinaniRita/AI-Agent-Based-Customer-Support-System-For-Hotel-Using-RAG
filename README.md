@@ -1,206 +1,100 @@
-# AI-Agent-Based-Customer-Support-System-For-Hotel-Using-RAG
+# AI-Agent-Based-Hotel-Management-System (Pro)
 
-## Introduction
+## 🏨 Introduction
 
-**AI-Agent-Based-Customer-Support-System-For-Hotel-Using-RAG** is an extensible proof-of-concept that combines autonomous AI agents with Retrieval-Augmented Generation (RAG) to deliver fast, accurate, and context-aware customer support for hotels. Using Telegram as the primary guest interface, it seamlessly blends conversational AI with a **full-stack physical room booking system**.
+This is a production-ready, professional AI agent framework designed to manage hotel operations through a unified Telegram interface. It combines **Autonomous AI Agents**, **Retrieval-Augmented Generation (RAG)**, and a **Physical Inventory Engine** to provide guests with a seamless, context-aware experience while ensuring 100% data isolation and security.
 
-By grounding generative responses in local hotel documents and integrating a real-time reservation state machine, the system reduces hallucinations, prevents illogical bookings (e.g., past dates), tracks physical room inventory, and offers a smooth checkout flow through a static web frontend.
+## 🚀 Key Features
 
-## Features
-
-- **Telegram Bot Integration**: Conversational interface directly accessible on Telegram.
-- **Physical Inventory Engine**: Actively manages 40 physical hotel rooms (Rooms 101 to 805) across 8 different price tiers, preventing overbooking.
-- **Time-Aware Booking Validation**: AI automatically catches and rejects past-date check-ins using real-time system clock validation.
-- **GitHub Pages Frontend Integration**: Seamlessly generates and sends a checkout URL connected to a responsive, glassmorphism-themed static web interface.
-- **FastAPI JSON Backend**: A robust REST API running natively with CORS enabled to serve the static frontend.
-- **Local AI Processing**: Runs entirely on local hardware using Ollama for privacy and cost-efficiency.
-- **Retrieval-Augmented Generation (RAG)**: Enhances responses with relevant hotel-specific knowledge.
-- **Two-Way Google Sheets Sync**: Features real-time bidirectional synchronization, allowing staff to manage bookings directly from a spreadsheet while Telegram interactions propagate instantly to the cloud sheet.
-
-## How It Works
-
-### Architecture Overview
-
-```text
-       [Telegram Bot] <──────> [Main.py State Machine & RAG Agent]
-             │                              │
-             ▼                              ▼
-    [GitHub Pages Frontend]         [Local Ollama / FAISS]
- (review.html & payment.html)               │
-             │                              ▼
-             └─────────> [FastAPI JSON Backend] <──────> [SQLite DB (Internal)]
-                         (Serves /api/booking)             (40 Physical Rooms)
-```
-
-1. **User Interaction**: Customers chat with the AI on Telegram to ask questions or start a booking.
-2. **State Machine**: The bot enters a 4-step booking flow handling Dates → Name → Email → Phone.
-3. **Inventory Management**: The database finds a specific empty physical room (e.g., Room #402) for those exact dates and assigns it.
-4. **Cloud Database Sync**: Telegram bookings and food orders trigger an automated HTTP webhook via `requests`, instantly pasting the live data into staff's Google Sheets interface. Editing the Google Sheets pushes a payload back to the local database via `ngrok`.
-5. **Handoff**: The Bot generates a URL pointing to the static GitHub Pages frontend.
-6. **Checkout**: The GitHub Pages site uses JavaScript (`fetch`) to call the FastAPI backend, displaying the booking details and completing the payload securely.
-
-## Setup & Startup Guide
-
-### Prerequisites
-
-- Python 3.8+
-- Ollama installed and running
-- A Telegram Bot Token (from BotFather on Telegram)
-- Git
-
-### Quick Start Guide
-
-1. **Clone and Setup**
-
-   ```bash
-   git clone <repository-url>
-   cd ai-agent-cs
-   ```
-
-2. **Create and Activate Virtual Environment**
-
-   ```bash
-   python -m venv .venv
-   # Windows
-   .venv\Scripts\activate
-   # Linux/Mac
-   source .venv/bin/activate
-   ```
-
-3. **Install Dependencies**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Initialize Physical Database**
-
-   ```bash
-   python -m backend.database.setup_db
-   ```
-
-   _(This ensures all 40 physical rooms are populated correctly)._
-
-5. **Ingest Knowledge Base (RAG Setup)**
-   Process the hotel documents into the FAISS vector store:
-
-   ```bash
-   python -m backend.data_scripts.ingest_kb
-   ```
-
-   _(This script chunks the documents in `data/knowledge_base/` and builds the index in `data/vector_store/`)_.
-
-6. **Configure Environment Variables**
-   - Copy `.env.example` to `.env` if not already done.
-   - Configure your keys and GitHub pages URL:
-     ```env
-     TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
-     FRONTEND_URL=https://your-username.github.io/repo-name/github_pages_frontend
-     ```
-
-7. **Set Up Ollama (in a separate terminal)**
-
-   ```bash
-   ollama serve
-   ollama pull qwen2.5:7b-instruct  # Main model
-   ollama pull all-MiniLM-L6-v2     # Embedding model (optional fallback)
-   ```
-
-8. **Start the API Server (Terminal 1)**
-
-   ```bash
-   uvicorn web_server:app --reload
-   ```
-
-9. **Start the Telegram Bot (Terminal 2)**
-
-   ```bash
-   python -m backend.app.main
-   ```
-
-10. **Host the Frontend**
-    - Upload the `github_pages_frontend` folder to a GitHub repository.
-    - Enable GitHub Pages on the `main` branch.
-    - Update `FRONTEND_URL` in `.env` or `main.py` with your live link.
-
-## 🔄 Switching Between Local and Live (GitHub Pages)
-
-Because your GitHub Pages site uses secure (`https://`), modern browsers will block it from fetching data from an insecure local computer (`http://localhost:8000`). Depending on how you are testing the system, follow these configurations:
-
-### Option 1: Fully Local Development
-
-If you just want to test on your own computer without deploying or opening tunnels:
-
-1. In `main.py`, set:
-   `FRONTEND_URL = "http://127.0.0.1:5500/github_pages_frontend"` (or whatever local port you are using to serve the HTML folder, e.g. via VSCode Live Server).
-2. In `review.html` and `payment.html`, set:
-   `const API_BASE_URL = 'http://localhost:8000';`
-
-### Option 2: Live GitHub Pages + Local Backend (Using Ngrok)
-
-To safely connect your live, secure GitHub Pages site to your insecure local laptop database, you must use a tunneling tool like Ngrok:
-
-1. Start Ngrok targeting your FastAPI backend: `ngrok http 8000`
-2. Copy your secure Ngrok URL (e.g., `https://7d41-42-118-12-116.ngrok-free.app`).
-3. Open `github_pages_frontend/review.html` and `github_pages_frontend/payment.html`.
-4. Locate the `<script>` tag near the bottom of both files and paste your Ngrok URL exactly like this:
-   ```javascript
-   const API_BASE_URL = "https://7d41-42-118-12-116.ngrok-free.app";
-   ```
-5. Commit and push these two files back up to GitHub. In 30 seconds, your live site will dynamically fetch real data from your laptop database!
-6. Remember to copy the exact same string into your local `.env` file (copied from `.env.example`) so your backend settings are kept organized.
+- **🔐 User-Based Access Control**: All bookings and food orders are strictly isolated by Telegram ID. Guests can only view their own reservations.
+- **🛡️ "Check-In" Security Policy**: Room service (Food Ordering) is strictly limited to guests who are physically checked into the hotel.
+- **🤖 Tool-Calling AI Agent**: Uses Ollama to intelligently classify intents and execute real-time database lookups (Availability, Status, Menu).
+- **📊 Real-Time Bi-Directional Sync**: Instant synchronization between the local SQLite database and Google Sheets.
+- **🥘 Precision Inventory**: Tracks 40 physical rooms and a real-time food menu with automatic stock subtraction.
 
 ---
 
-## Project Structure
+## 🏗️ Project Structure
+
+The project follows a modular, professional Python architecture, isolating logic into specialized layers:
 
 ```text
 ai-agent-cs/
 ├── backend/
-│   ├── app/
-│   │   ├── agent/              # AI Agents and Confidence Scoring
-│   │   ├── main.py             # Telegram Application & State Machine
-│   │   └── services/           # RAG and LLM coordination
-│   ├── database/
-│   │   ├── db_service.py       # SQLite CRUD & Physical Inventory queries
-│   │   └── setup_db.py         # 40-Room Seeding Script
-│   └── data_scripts/           # Vector DB compilation scripts
+│   ├── api_server.py        # FastAPI API (Static Frontend Webhook)
+│   ├── bot_server.py        # Telegram Bot Entry Point & State Machine
+│   ├── config.py            # Central Configuration & Environment Loading
+│   ├── agent/               # AI Intel: Logic, Prompts, and Intent Routers
+│   ├── database/            # Data Layer: Seeding, Migrations, and SQL logic
+│   ├── data_scripts/        # KB Ingestion: FAISS Vector Store build scripts
+│   └── services/            # Business Logic: Room, Food, User, and Sheets logic
 ├── data/
-│   ├── knowledge_base/         # Hotel markdown documents
-│   ├── vector_store/           # FAISS index
-│   └── hotel_data.db           # SQLite database
-├── github_pages_frontend/      # Static Web UI for GitHub Pages
-│   ├── review.html
-│   └── payment.html
-├── web_server.py               # FastAPI JSON Backend (CORS enabled)
-├── requirements.txt
+│   ├── knowledge_base/      # Official Hotel Markdown Documentation
+│   ├── vector_store/        # FAISS Index & Embeddings
+│   └── hotel_data.db        # Live SQLite Production Database
+├── frontend/                # Glassmorphism Static Web UI
 └── README.md
 ```
 
-## 🧹 Maintenance & Database Reset
+---
 
-If you need to wipe all booking history and reset physical room availability, follow these steps to perform a clean database reset:
+## ⚙️ Setup & Startup
 
-1. **Stop all running processes**:
-   - `Ctrl+C` in the terminal running the API Server (`web_server.py`).
-   - `Ctrl+C` in the terminal running the Telegram Bot (`main.py`).
+### 1. Requirements
+- Python 3.9+
+- Ollama (running locally)
+- Ngrok (for Google Sheets/GitHub Pages tunnels)
 
-2. **Delete the database file**:
-   - Locate and delete `data/hotel_data.db`.
-   - _(Optional)_ On Windows PowerShell: `Remove-Item data/hotel_data.db`
+### 2. Initialization
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt
 
-3. **Re-initialize and re-seed**:
-   - Run the setup script to recreate the schema and re-populate the 40 physical rooms:
-     ```bash
-     python -m backend.database.setup_db
-     ```
+# 2. Seed the 40 physical rooms
+python -m backend.database.setup_db
 
-4. **Restart your services**:
-   - Start Terminal 1 (`uvicorn web_server:app --reload`)
-   - Start Terminal 2 (`python -m backend.app.main`)
+# 3. Ingest the Knowledge Base (RAG)
+python -m backend.data_scripts.ingest_kb
+```
+
+### 3. Execution (Independent Service Startup)
+For the most stable experience, you should run the API and Bot in two separate terminal windows using these dedicated helper scripts:
+
+- **Terminal 1 (API Server)**:
+  `..\.venv\Scripts\python.exe start_api_server.py`
+- **Terminal 2 (Telegram Bot)**:
+  `..\.venv\Scripts\python.exe start_telegram_bot.py`
 
 ---
 
-## License
+## 📊 Google Sheets Two-Way Sync Guide
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This system uses a **Direct-Push Webhook Architecture** to ensure that your local database and staff spreadsheet are always identical.
+
+### A. Local to Sheet (Push)
+1. In your `.env`, set your `GOOGLE_SHEETS_WEBHOOK_URL` provided by your Apps Script.
+2. Every time a guest books a room or orders food via Telegram, the system instantly pushes the data to the Cloud.
+
+### B. Sheet to Local (Pull)
+To allow staff to edit the Google Sheet and have it update the Telegram bot in real-time:
+1. **Ngrok Tunnel**: Run `ngrok http 8000`.
+2. **Apps Script**: Copy your Ngrok URL and paste it into the `webhookUrl` variable in your Google Apps Script editor.
+3. **Trigger**: Set an `On Edit` trigger in the Apps Script dashboard.
+4. **Result**: Changing a "Status" in Google Sheets (e.g., from `BOOKED` to `CHECK_IN`) will instantly send a Telegram message to the guest!
+
+---
+
+## 🛡️ Security & Privacy Compliance
+
+- **Isolation**: Telegram IDs are hash-linked to bookings. No room number entry is required, preventing unauthorized users from "guessing" other guests' rooms.
+- **Validation**:
+    - **Food Ordering**: The system queries the `status` column. If the guest is not `CHECK_IN`, the order is blocked.
+    - **Inventory**: Atomic database transactions prevent double-booking the same physical room.
+- **Data Privacy**: All AI processing is performed **locally** via Ollama. No guest data, chat history, or booking info ever leaves your hardware.
+
+---
+
+## 🧹 Database Maintenance
+To wipe all test data and reset the 40 physical rooms to "Available":
+1. Delete `data/hotel_data.db`.
+2. Run `python -m backend.database.setup_db`.
