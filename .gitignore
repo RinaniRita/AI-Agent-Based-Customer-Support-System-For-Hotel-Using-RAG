@@ -13,6 +13,8 @@ dist/
 venv/
 env/
 ENV/
+.agents/
+agents/
 
 # =========================
 # Environment Variables
@@ -24,8 +26,8 @@ ENV/
 # =========================
 # Vector Store / RAG Data
 # =========================
-data/vector_store/
-data/processed_chunks/
+ai-agent-cs/data/vector_store/
+ai-agent-cs/data/processed_chunks/
 *.faiss
 *.index
 *.pkl
@@ -44,12 +46,13 @@ logs/
 # =========================
 *.db
 *.sqlite3
-data/tickets/
+ai-agent-cs/data/tickets/
 
 # =========================
 # IDE / Editor
 # =========================
 .vscode/
+vscode/
 .idea/
 *.swp
 *.swo
