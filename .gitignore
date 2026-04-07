@@ -13,8 +13,8 @@ dist/
 venv/
 env/
 ENV/
-.agents/
-agents/
+.agent/
+agent/
 
 # =========================
 # Environment Variables
