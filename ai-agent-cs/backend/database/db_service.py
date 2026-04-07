@@ -4,7 +4,7 @@ import logging
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-from backend.services.sheets_sync import sync_booking_to_sheet, sync_food_order_to_sheet
+from backend.services.sheets_sync import sync_booking_to_sheet, sync_food_order_to_sheet, sync_service_request_to_sheet
 
 logger = logging.getLogger(__name__)
 
@@ -282,7 +282,7 @@ def get_active_booking_by_room(room_number):
 # ─── Service Request Queries ────────────────────────────────
 
 def create_service_request(telegram_id, request_type, details=""):
-    """Create a new service request and return its ID."""
+    """Create a new service request, link to room number, and sync to sheet."""
     conn = get_connection()
     cursor = conn.execute(
         "INSERT INTO service_requests (telegram_id, request_type, details) VALUES (?, ?, ?)",
@@ -291,7 +291,82 @@ def create_service_request(telegram_id, request_type, details=""):
     req_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
+    # Attempt to sync to Google Sheets (joining with booking for Room Number)
+    try:
+        req_data = get_service_request(req_id)
+        if req_data:
+            sync_service_request_to_sheet(req_data)
+    except Exception as e:
+        logger.error(f"Failed to sync service request {req_id}: {e}")
+
     return req_id
+
+
+def get_service_request(req_id):
+    """Fetch service request details joined with room_number from active booking."""
+    conn = get_connection()
+    row = conn.execute("""
+        SELECT sr.*, b.room_number 
+        FROM service_requests sr
+        LEFT JOIN bookings b ON sr.telegram_id = b.telegram_id 
+          AND b.status IN ('CHECK_IN', 'CHECK IN', 'CONFIRMED')
+        WHERE sr.id = ?
+        ORDER BY b.created_at DESC
+        LIMIT 1
+    """, (req_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def update_service_request_status(req_id, new_status):
+    """Internal update of service status."""
+    conn = get_connection()
+    conn.execute("UPDATE service_requests SET status = ? WHERE id = ?", (new_status, req_id))
+    conn.commit()
+    conn.close()
+    
+    # Sync update to sheet
+    req = get_service_request(req_id)
+    if req:
+        sync_service_request_to_sheet(req)
+    return req
+
+
+def update_service_request_field(req_id, field, value):
+    """Generic function to update a single field in a service request from webhook."""
+    conn = get_connection()
+    try:
+        # Map sheet headers to DB columns if necessary
+        header_map = {
+            "ID": "id",
+            "Room Number": "room_number", # This is readonly in DB (comes from bookings)
+            "Request": "details",
+            "Status": "status"
+        }
+        db_field = header_map.get(field, field.lower())
+        
+        # Valid columns check
+        cursor = conn.execute("PRAGMA table_info(service_requests)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if db_field == "room_number":
+            logger.warning("Attempted to update readonly field room_number")
+            return False
+
+        if db_field not in columns:
+            logger.error(f"Invalid field name for service_requests: {db_field}")
+            return False
+
+        conn.execute(f"UPDATE service_requests SET {db_field} = ? WHERE id = ?", (value, req_id))
+        conn.commit()
+        logger.info(f"Updated service request #{req_id} field '{db_field}' to '{value}'")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating service request field: {e}")
+        return False
+    finally:
+        conn.close()
 
 
 # ─── User-Based Access Control ──────────────────────────────

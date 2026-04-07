@@ -18,7 +18,8 @@ from backend.database.db_service import (
     init_db, create_booking, update_booking_dates,
     update_booking_guest_info, get_booking, get_room_info,
     check_availability, get_available_room_numbers,
-    create_food_order, get_active_food_orders, get_active_booking_by_room
+    create_food_order, get_active_food_orders, get_active_booking_by_room,
+    update_service_request_field, get_service_request
 )
 from backend.services.food_service import check_food_inventory, suggest_alternative_food
 from backend.services.room_service import check_room_availability, get_room_status
@@ -239,13 +240,21 @@ async def sheets_webhook(request: Request):
             "Items": "items"
         }
         
-        db_field = header_map.get(field, field.lower().replace(" ", "_"))
+        db_field = header_map.get(field) or field.lower().replace(" ", "_")
+        
+        # Normalize status values (e.g., "check in" -> "CHECK_IN")
+        norm_value = value
+        if db_field == "status" and value:
+            norm_value = value.upper().strip().replace(" ", "_")
+            logger.info(f"Normalized status '{value}' to '{norm_value}'")
 
         success = False
         if target_type == "booking":
-            success = update_booking_field(row_id, db_field, value)
+            success = update_booking_field(row_id, db_field, norm_value)
         elif target_type == "food_order":
-            success = update_food_order_field(row_id, db_field, value)
+            success = update_food_order_field(row_id, db_field, norm_value)
+        elif target_type == "service_request":
+            success = update_service_request_field(row_id, db_field, norm_value)
 
         if success:
             logger.info(f"Succesfully synced {target_type} #{row_id} update from Sheets.")
@@ -284,6 +293,18 @@ async def sheets_webhook(request: Request):
                                 "PAYMENT RECEIVED": "✅ *Payment Confirmed*\nWe have received your in-room dining payment!"
                             }
                             text = f_map.get(msg_value)
+
+                    elif target_type == "service_request":
+                        service = get_service_request(row_id)
+                        if service and service.get("telegram_id"):
+                            chat_id = service["telegram_id"]
+                            # Define custom messages based on the new status labels
+                            status_messages = {
+                                "COMPLETE": "✅ *Request Completed*\n\nYour recent service request has been completed. We hope you are satisfied with our service! Thank you.",
+                                "INPROGRESS": "🛠️ *Staff is on the Way*\n\nGreat news! A staff member is currently handling your request. It will be fulfilled shortly.",
+                                "CANCELLED": "❌ *Request Cancelled*\n\nYour service request has been cancelled by the front desk. If you believe this is an error, please contact us."
+                            }
+                            text = status_messages.get(msg_value, f"🔔 *Update:* Your service request status is now: *{value}*")
                             
                     if text and chat_id:
                         await bot.send_message(chat_id=chat_id, text=text, parse_mode="Markdown")

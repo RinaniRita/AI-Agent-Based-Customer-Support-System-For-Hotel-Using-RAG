@@ -29,7 +29,8 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from backend.database.db_service import (
     get_connection, create_booking, update_booking_guest_info,
-    get_room_info, check_availability, get_active_booking_by_room, get_food_order
+    get_room_info, check_availability, get_active_booking_by_room, get_food_order,
+    create_service_request
 )
 
 # ── Service Layer (modular, SQLite backed) ──────────────────────
@@ -86,6 +87,20 @@ def book_room(telegram_id: int, room_type: str) -> Dict[str, Any]:
 
 
 # ──────────────────────────────────────────────
+#  TOOL 4 — request_service
+# ──────────────────────────────────────────────
+def request_service(telegram_id: int, request_type: str, details: str = "") -> Dict[str, Any]:
+    """Log a front desk service request and return the ID."""
+    req_id = create_service_request(telegram_id, request_type, details)
+    return {
+        "request_id": req_id,
+        "request_type": request_type,
+        "details": details,
+        "status": "PENDING"
+    }
+
+
+# ──────────────────────────────────────────────
 #  INTENT CLASSIFIER  (the "Brain")
 # ──────────────────────────────────────────────
 def _load_prompt(filename: str) -> str:
@@ -122,7 +137,7 @@ def classify_intent(user_input: str) -> str:
         # Sanitise: take only the first word in case Ollama adds extras
         label = raw.split()[0] if raw else "GENERAL"
         allowed = ("GET_ROOMS", "RECOMMEND", "BOOK", "ORDER_FOOD", "MY_BOOKING",
-                   "FOOD_AVAILABILITY", "ORDER_STATUS", "ROOM_AVAILABILITY", "ROOM_STATUS", "GENERAL")
+                   "FOOD_AVAILABILITY", "ORDER_STATUS", "ROOM_AVAILABILITY", "ROOM_STATUS", "SERVICE_REQUEST", "GENERAL")
         if label not in allowed:
             logger.warning(f"Unexpected intent label '{label}', falling back to GENERAL")
             label = "GENERAL"
@@ -381,6 +396,32 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
                 f"💰 *Total:* €{booking_info['total_price'] or 'N/A'}"
             )
         return {"response": resp, "intent": intent, "tool_used": "get_booking_by_user", "tool_result": booking_info}
+
+    # ── SERVICE_REQUEST ──
+    elif intent == "SERVICE_REQUEST":
+        # Identify service type from message
+        lowered = user_input.lower()
+        service_type = "OTHER"
+        if "towel" in lowered: service_type = "TOWELS"
+        elif "clean" in lowered or "housekeeping" in lowered: service_type = "HOUSEKEEPING"
+        elif "pillow" in lowered: service_type = "PILLOWS"
+        elif "wake up" in lowered: service_type = "WAKE_UP_CALL"
+        
+        # Log the request
+        result = request_service(chat_id, service_type, user_input)
+        
+        resp = (
+            f"🛎️ *Front Desk Request Logged*\n\n"
+            f"I've shared your request with our staff:\n"
+            f"📝 *Request:* {user_input}\n\n"
+            "Someone will be with you shortly! ✅"
+        )
+        return {
+            "response": resp,
+            "intent": intent,
+            "tool_used": "request_service",
+            "tool_result": result,
+        }
 
     # ── GENERAL (RAG-grounded response for hotel knowledge) ──
     else:

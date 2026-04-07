@@ -17,7 +17,8 @@ from backend.database.db_service import (
     init_db, create_booking, update_booking_dates,
     update_booking_guest_info, get_booking, get_room_info,
     check_availability, get_available_room_numbers,
-    create_food_order, get_active_food_orders, get_active_booking_by_room
+    create_food_order, get_active_food_orders, get_active_booking_by_room,
+    create_service_request, get_booking_by_user
 )
 import json
 
@@ -43,6 +44,9 @@ booking_sessions = {}
 
 # Food order cart: { chat_id: { "items": [{"name": str, "price": float}], "pairings": [...] } }
 food_carts = {}
+
+# General user data storage
+user_data = {}
 
 # ── In-Room Dining Menu Data ────────────────────────────────
 DINING_MENU = {
@@ -759,10 +763,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "front_desk":
         keyboard = [
-            [InlineKeyboardButton("🛎️ Request Extra Towels", callback_data="fd_towels")],
-            [InlineKeyboardButton("🧹 Housekeeping Request", callback_data="fd_housekeeping")],
-            [InlineKeyboardButton("🔕 Do Not Disturb (Toggle)", callback_data="fd_dnd")],
-            [InlineKeyboardButton("🕐 Late Check-Out Request", callback_data="fd_late_checkout")],
+            [InlineKeyboardButton("🧼 Request Extra Towels", callback_data="fd_towels")],
+            [InlineKeyboardButton("✨ Housekeeping Request", callback_data="fd_housekeeping")],
+            [InlineKeyboardButton("📝 Other Request", callback_data="fd_other")],
             [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
         ]
         await query.edit_message_text(
@@ -771,26 +774,111 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
     elif data.startswith("fd_"):
-        # Front desk service requests
-        service_map = {
-            "fd_towels": ("Extra Towels", "🛁 *Extra towels* will be delivered to your room within 15 minutes."),
-            "fd_housekeeping": ("Housekeeping", "🧹 *Housekeeping* has been notified. Your room will be serviced shortly."),
-            "fd_dnd": ("Do Not Disturb", "🔕 *Do Not Disturb* mode activated. All deliveries & housekeeping are paused until you disable it."),
-            "fd_late_checkout": ("Late Check-Out", "🕐 *Late check-out* request submitted. Our front desk will confirm availability shortly."),
-        }
-        svc = service_map.get(data)
-        if svc:
-            from backend.database.db_service import create_service_request
-            create_service_request(chat_id, svc[0], f"Requested via Telegram")
+        # 1. Guest Validation Check
+        booking = get_booking_by_user(chat_id)
+        if not booking:
+            await query.edit_message_text(
+                text=(
+                    "⚠️ *Access Restricted*\n\n"
+                    "Front Desk services are only available for checked-in guests.\n"
+                    "I couldn't find an active booking for your account.\n\n"
+                    "Please contact our physical reception or book a room first."
+                ),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]),
+                parse_mode="Markdown"
+            )
+            return
+
+        room_number = booking["room_number"]
+        if chat_id not in user_data:
+            user_data[chat_id] = {}
+        
+        # 2. Redirect to Room Verification if not verified yet
+        if data in ["fd_towels", "fd_housekeeping", "fd_other"]:
+            user_data[chat_id]["pending_service"] = data
             keyboard = [
-                [InlineKeyboardButton("🛎️ More Services", callback_data="front_desk")],
-                [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
+                [InlineKeyboardButton("✅ Yes, that's correct", callback_data="fd_room_yes")],
+                [InlineKeyboardButton("❌ No, incorrect", callback_data="fd_room_no")]
             ]
             await query.edit_message_text(
-                text=f"✅ *Request Confirmed!*\n\n{svc[1]}\n\n_Request logged in our system._",
+                text=(
+                    "🛡️ *Guest Validation*\n\n"
+                    f"I see you are currently in Room **#{room_number}**.\n"
+                    "Is this correct? We need this to ensure our staff reaches you correctly. ✅"
+                ),
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )
+            return
+
+        # 3. Handle Verification Results
+        if data == "fd_room_no":
+            await query.edit_message_text(
+                text=(
+                    "🙇 *Room Mismatch*\n\n"
+                    "I'm sorry about that! Please contact our front desk staff directly or via 'Human Support' to update your room profile.\n\n"
+                    "We cannot fulfill automated requests without the correct room number."
+                ),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]),
+                parse_mode="Markdown"
+            )
+            return
+
+        if data == "fd_room_yes":
+            pending = user_data[chat_id].get("pending_service")
+            
+            if pending == "fd_other":
+                user_states[chat_id] = "AWAITING_SERVICE_OTHER"
+                keyboard = [[InlineKeyboardButton("🔙 Cancel", callback_data="front_desk")]]
+                await query.edit_message_text(
+                    text=(
+                        "📝 *Custom Service Request*\n\n"
+                        "Please type your request below (e.g., 'Need a baby cot' or 'Wake up call at 7 AM').\n\n"
+                        "_Our staff will receive this message instantly._ 👇"
+                    ),
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode="Markdown"
+                )
+                return
+
+            # One-tap requests
+            service_map = {
+                "fd_towels": ("Extra Towels", "🛁 *Extra towels* will be delivered to your room within 15 minutes."),
+                "fd_housekeeping": ("Housekeeping", "🧹 *Housekeeping* has been notified. Your room will be serviced shortly."),
+            }
+            svc = service_map.get(pending)
+            if svc:
+                create_service_request(chat_id, svc[0], f"Requested via Telegram")
+                keyboard = [
+                    [InlineKeyboardButton("🛎️ More Services", callback_data="front_desk")],
+                    [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
+                ]
+                await query.edit_message_text(
+                    text=f"✅ *Request Confirmed!*\n\n{svc[1]}\n\n_Request logged in our system for Room #{room_number}._",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode="Markdown"
+                )
+            return
+
+
+    elif data == "fd_confirm_other":
+        details = user_data.get(chat_id, {}).get("service_other_text", "No details")
+        create_service_request(chat_id, "OTHER", details)
+        user_states[chat_id] = "MAIN_MENU"
+        keyboard = [
+            [InlineKeyboardButton("🛎️ More Services", callback_data="front_desk")],
+            [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
+        ]
+        await query.edit_message_text(
+            text=(
+                "✅ *Custom Request Sent!*\n\n"
+                f"📝 *Details:* {details}\n\n"
+                "Our front desk staff has been notified. Thank you!"
+            ),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+
     elif data == "coming_soon" or data == "human_support":
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]
         await query.edit_message_text(
@@ -840,6 +928,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user_message = update.message.text
     state = user_states.get(chat_id, "MAIN_MENU")
+
+    # ─── FRONT DESK: CUSTOM REQUEST FLOW ───
+    if state == "AWAITING_SERVICE_OTHER":
+        if chat_id not in user_data:
+            user_data[chat_id] = {}
+        user_data[chat_id]["service_other_text"] = user_message
+        
+        keyboard = [
+            [InlineKeyboardButton("✅ Confirm & Send", callback_data="fd_confirm_other")],
+            [InlineKeyboardButton("✏️ Edit Message", callback_data="fd_other")],
+            [InlineKeyboardButton("🔙 Cancel", callback_data="front_desk")]
+        ]
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=(
+                "🔎 *Review Your Request*\n\n"
+                f"📝 *Message:* {user_message}\n\n"
+                "Is this correct? Our staff will receive this exactly as written. ✅"
+            ),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+        return
 
     # ─── BOOKING FLOW STATE MACHINE ───
     if state == "BOOKING_FLOW" and chat_id in booking_sessions:
@@ -1168,10 +1279,9 @@ async def cmd_front_desk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Direct shortcut to front desk services."""
     chat_id = update.effective_chat.id
     keyboard = [
-        [InlineKeyboardButton("🛎️ Request Extra Towels", callback_data="fd_towels")],
-        [InlineKeyboardButton("🧹 Housekeeping Request", callback_data="fd_housekeeping")],
-        [InlineKeyboardButton("🔕 Do Not Disturb (Toggle)", callback_data="fd_dnd")],
-        [InlineKeyboardButton("🕐 Late Check-Out Request", callback_data="fd_late_checkout")],
+        [InlineKeyboardButton("🧼 Request Extra Towels", callback_data="fd_towels")],
+        [InlineKeyboardButton("✨ Housekeeping Request", callback_data="fd_housekeeping")],
+        [InlineKeyboardButton("📝 Other Request", callback_data="fd_other")],
         [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
     ]
     await context.bot.send_message(

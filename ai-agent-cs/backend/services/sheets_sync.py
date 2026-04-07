@@ -69,3 +69,33 @@ def sync_food_order_to_sheet(order_data):
         logger.info(f"Successfully synced food order {order_data.get('id')} to Google Sheets.")
     except Exception as e:
         logger.error(f"Failed to sync food order to Google Sheets: {e}")
+
+def sync_service_request_to_sheet(request_data):
+    """
+    Sends service request data to the Google Sheets Webhook.
+    request_data should include 'id', 'room_number', and 'request' (details).
+    """
+    if not SHEETS_WEBHOOK_URL or not CUSTOMER_SHEET_ID:
+        logger.warning("Google Sheets sync skipped: Webhook URL or Sheet ID not set.")
+        return
+
+    try:
+        # Prepare a clean map for the sheet (A: ID, B: Room Number, C: Request, D: Status)
+        payload_data = {
+            "id": request_data.get("id"),
+            "room_number": request_data.get("room_number"),
+            "request": request_data.get("details") or request_data.get("request_type"),
+            "status": request_data.get("status", "PENDING")
+        }
+
+        payload = {
+            "action": "upsert_service",
+            "sheet_id": CUSTOMER_SHEET_ID,
+            "data": payload_data
+        }
+        response = requests.post(SHEETS_WEBHOOK_URL, json=payload, timeout=30)
+        response.raise_for_status()
+        logger.info(f"Successfully synced service request {request_data.get('id')} to Google Sheets.")
+    except Exception as e:
+        logger.error(f"Failed to sync service request to Google Sheets: {e}")
+

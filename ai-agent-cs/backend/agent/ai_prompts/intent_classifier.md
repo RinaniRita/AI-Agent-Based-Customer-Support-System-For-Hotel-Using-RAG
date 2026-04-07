@@ -10,16 +10,19 @@ ROOM_AVAILABILITY — The guest is asking if a specific room number is available
 ROOM_STATUS      — The guest is asking for the current status of a specific room number.
 FOOD_AVAILABILITY — The guest is asking whether a specific food item is available or in stock.
 ORDER_STATUS     — The guest is asking about the status of an existing food or room service order.
+SERVICE_REQUEST   — The guest needs hotel services like towels, housekeeping, wake-up calls, pillows, or other room amenities.
 GENERAL          — Anything else (policies, check-in times, WiFi, directions, etc.)
 
 Rules:
 - Reply with ONLY the single uppercase label. No punctuation, no explanation.
+- SERVICE_REQUEST: triggers on "need towels", "clean my room", "housekeeping", "wake up call", "extra pillow", "fix the light", "send someone up".
 - MY_BOOKING: triggers on "my booking", "my reservation", "my room", "what did I book", "show my booking info", "my booking status", "my check in date".
 - ROOM_AVAILABILITY: triggers when the message includes a specific room number AND asks if it is available/free/open/booked.
 - ROOM_STATUS: triggers when the guest asks "what is the status of room X" or "is room X checked in" etc.
 - FOOD_AVAILABILITY: triggers when the guest asks "do you have [food]?", "is [food] available?", "is [food] in stock?"
 - ORDER_STATUS: triggers when the guest asks "where is my order", "what is the status of order X", or asks about delivery.
 - If unsure, reply GENERAL.
+- SERVICE_REQUEST: prioritizes action-oriented room requests. If a guest asks "Do you have towels?" it is FOOD_AVAILABILITY (if they mean items) but "Send towels" is SERVICE_REQUEST. Typically, active requests for room help are SERVICE_REQUEST.
 
 Guest message: "{message}"
 
