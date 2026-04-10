@@ -8,7 +8,7 @@ This is a production-ready, professional AI agent framework designed to manage h
 
 - **🔐 User-Based Access Control**: All bookings and food orders are strictly isolated by Telegram ID. Guests can only view their own reservations.
 - **🛡️ "Check-In" Security Policy**: Room service (Food Ordering) is strictly limited to guests who are physically checked into the hotel.
-- **🤖 Tool-Calling AI Agent**: Uses Ollama to intelligently classify intents and execute real-time database lookups (Availability, Status, Menu).
+- **🤖 Hybrid AI Engine**: Supports both **Google Gemini 2.5 Flash** (Cloud) for high-performance hosting and **Ollama** (Local) for offline privacy.
 - **🎛️ Multi-Room Dashboard**: Advanced support for guests with multiple active bookings, providing a unified interface to manage each room independently.
 - **📊 Live Order Tracker**: Guest-facing real-time status board for food orders (Received → Preparing → Plating → En Route → Delivered).
 - **🔄 Real-Time Bi-Directional Sync**: Instant synchronization between the local SQLite database and Google Sheets staff dashboard.
@@ -44,7 +44,8 @@ ai-agent-cs/
 
 ### 1. Requirements
 - Python 3.9+
-- Ollama (running locally)
+- **Google Gemini API Key** (Required for 24/7 cloud hosting)
+- **Ollama** (Optional fallback for local-only execution)
 - Ngrok (for Google Sheets/GitHub Pages tunnels)
 
 ### 2. Initialization
@@ -102,7 +103,9 @@ The system is optimized for high-value guests who may book multiple rooms simult
 - **Validation**:
     - **Food Ordering**: The system queries the `status` column. If the guest is not `CHECK_IN`, the order is blocked.
     - **Inventory**: Atomic database transactions prevent double-booking the same physical room.
-- **Data Privacy**: All AI processing is performed **locally** via Ollama. No guest data, chat history, or booking info ever leaves your hardware.
+- **Data Privacy**: 
+    - **Cloud Mode**: Uses Google Gemini via API (Fast, Cloud-Native).
+    - **Local Mode**: All AI processing is performed **locally** via Ollama. No guest data, chat history, or booking info ever leaves your hardware.
 
 ---
 
