@@ -2,8 +2,14 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file (root of ai-agent-cs)
+# Note: In production Docker, variables are usually provided through the host/dashboard,
+# so we load .env only if it exists.
 env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
-load_dotenv(dotenv_path=env_path, override=True)
+if os.path.exists(env_path):
+    load_dotenv(dotenv_path=env_path, override=True)
+else:
+    # Fallback to system env vars only
+    load_dotenv()
 
 # --------------------------------------------------
 # Ollama configuration

@@ -1,0 +1,21 @@
+# Docker Ignore
+.env
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.db
+db.sqlite3
+data/hotel_data.db
+.git
+.github
+.gitignore
+README.md
+Procfile
+test_*.py
+scratch/
+artifacts/
+logs/
+vector_store/faiss_index.index
+vector_store/metadata.json
