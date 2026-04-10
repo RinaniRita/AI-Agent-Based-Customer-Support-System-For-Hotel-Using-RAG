@@ -81,10 +81,15 @@ def sync_service_request_to_sheet(request_data):
 
     try:
         # Prepare a clean map for the sheet (A: ID, B: Room Number, C: Request, D: Status)
+        req_type = request_data.get("request_type", "Request")
+        details = request_data.get("details", "")
+        # Format as "Type: Details" or just "Type" if details is generic
+        full_request = f"{req_type}: {details}" if details and details != "Requested via Telegram" else req_type
+
         payload_data = {
             "id": request_data.get("id"),
             "room_number": request_data.get("room_number"),
-            "request": request_data.get("details") or request_data.get("request_type"),
+            "request": full_request,
             "status": request_data.get("status", "PENDING")
         }
 

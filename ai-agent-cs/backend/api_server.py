@@ -19,7 +19,8 @@ from backend.database.db_service import (
     update_booking_guest_info, get_booking, get_room_info,
     check_availability, get_available_room_numbers,
     create_food_order, get_active_food_orders, get_active_booking_by_room,
-    update_service_request_field, get_service_request
+    update_service_request_field, get_service_request, update_booking_field, update_food_order_field,
+    get_food_order, confirm_booking, update_food_order_status, get_connection
 )
 from backend.services.food_service import check_food_inventory, suggest_alternative_food
 from backend.services.room_service import check_room_availability, get_room_status
@@ -115,10 +116,12 @@ async def update_order_status(update: OrderUpdate):
 
     # 2. Build status-specific messages
     status_msg = {
+        "RECEIVED": "📥 Your order has been received by the kitchen.",
         "PREPARING": "🍳 Your Chef is now preparing your meal!",
-        "PLATING": "✨ The kitchen is adding the final touches.",
+        "PLATING": "✨ The kitchen is adding the final touches (Plating).",
         "EN_ROUTE": "🛎️ On its way! Your server is heading to your door.",
-        "DELIVERED": "✅ Delivered! Enjoy your fantastic meal."
+        "DELIVERED": "✅ Delivered! Enjoy your fantastic meal.",
+        "CANCELLED": "❌ Your order has been cancelled."
     }.get(update.status, f"Update: {update.status}")
 
     # 3. PUSH directly to Telegram User
@@ -223,8 +226,15 @@ async def sheets_webhook(request: Request):
         field = data.get("field")
         value = data.get("value")
 
-        if not target_type or not row_id or not field:
+        if not target_type or row_id is None or not field:
             return JSONResponse({"error": "Missing required fields in payload"}, status_code=400)
+            
+        # Ensure ID is an integer for database matching
+        try:
+            row_id = int(row_id)
+        except (ValueError, TypeError):
+            logger.error(f"Invalid non-integer ID received: {row_id}")
+            return JSONResponse({"error": "ID must be an integer"}, status_code=400)
 
         # Map spreadsheet headers to database column names if necessary
         header_map = {
@@ -287,8 +297,12 @@ async def sheets_webhook(request: Request):
                         if order and order.get("chat_id"):
                             chat_id = order["chat_id"]
                             f_map = {
+                                "RECEIVED": "📥 *Order Received*\nYour order has been received by the kitchen.",
+                                "PREPARING": "🍳 *Chef is Preparing*\nYour Chef is now preparing your delicious meal!",
+                                "PLATING": "✨ *Plating in Progress*\nThe kitchen is adding the final touches to your order.",
+                                "EN_ROUTE": "🛎️ *Order En Route*\nYour server is heading to your room now!",
                                 "DELIVERED": "✅ *Order Delivered!*\nEnjoy your fantastic meal.",
-                                "CANCELLED": "❌ *Order Cancelled*\nYour food order has been securely cancelled.",
+                                "CANCELLED": "❌ *Order Cancelled*\nYour food order has been cancelled.",
                                 "PAYMENT_RECEIVED": "✅ *Payment Confirmed*\nWe have received your in-room dining payment!",
                                 "PAYMENT RECEIVED": "✅ *Payment Confirmed*\nWe have received your in-room dining payment!"
                             }

@@ -126,7 +126,7 @@ def get_available_room_numbers(room_type, check_in, check_out):
               SELECT b.room_number FROM bookings b
               WHERE b.room_type = ?
                 AND b.room_number IS NOT NULL
-                AND b.status IN ('CONFIRMED', 'PENDING_PAYMENT', 'PENDING_GUEST_INFO')
+                AND b.status IN ('CONFIRMED', 'PENDING_PAYMENT', 'PENDING_GUEST_INFO', 'PAYMENT_RECEIVED', 'CHECK_IN', 'CHECK IN')
                 AND b.check_in < ?
                 AND b.check_out > ?
           )
@@ -152,7 +152,7 @@ def get_booked_dates_for_type(room_type):
         SELECT check_in, check_out, COUNT(*) as booked_count
         FROM bookings
         WHERE room_type = ?
-          AND status IN ('CONFIRMED', 'PENDING_PAYMENT', 'PENDING_GUEST_INFO')
+          AND status IN ('CONFIRMED', 'PENDING_PAYMENT', 'PENDING_GUEST_INFO', 'PAYMENT_RECEIVED', 'CHECK_IN', 'CHECK IN')
           AND room_number IS NOT NULL
         GROUP BY check_in, check_out
         HAVING booked_count >= ?
@@ -392,6 +392,22 @@ def get_booking_by_user(user_id: int):
     """, (user_id,)).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def get_all_active_bookings_by_user(user_id: int):
+    """Fetch all active bookings for a Telegram user (excluding cancelled or checked out)."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT b.*, r.display_name, r.price_per_night
+        FROM bookings b
+        JOIN rooms r ON b.room_type = r.room_type
+        WHERE b.telegram_id = ?
+          AND b.status NOT IN ('CANCELLED', 'CHECK_OUT', 'CHECK OUT')
+          AND b.room_number IS NOT NULL
+        ORDER BY b.created_at DESC
+    """, (user_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def validate_user_booking(user_id: int) -> bool:

@@ -18,7 +18,7 @@ from backend.database.db_service import (
     update_booking_guest_info, get_booking, get_room_info,
     check_availability, get_available_room_numbers,
     create_food_order, get_active_food_orders, get_active_booking_by_room,
-    create_service_request, get_booking_by_user
+    create_service_request, get_booking_by_user, get_all_active_bookings_by_user
 )
 import json
 
@@ -112,6 +112,7 @@ def get_main_menu_keyboard():
         [InlineKeyboardButton("🏨 Hotel Rooms & Booking", callback_data="view_rooms")],
         [InlineKeyboardButton("🛎️ Front Desk Services", callback_data="front_desk")],
         [InlineKeyboardButton("🍽️ Order Room Service", callback_data="order_food")],
+        [InlineKeyboardButton("📋 My Bookings", callback_data="view_my_bookings")],
         [InlineKeyboardButton("🤖 Ask AI Concierge", callback_data="ai_mode")],
         [InlineKeyboardButton("☎️ Speak to a Human", callback_data="human_support")]
     ]
@@ -157,6 +158,122 @@ def get_ai_chat_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
+def get_support_keyboard():
+    """Generates the inline keyboard for Human Support options."""
+    keyboard = [
+        [InlineKeyboardButton("💬 WhatsApp Support", url="https://wa.me/84901234567")],
+        [InlineKeyboardButton("🔙 Return to Main Menu", callback_data="main_menu")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_room_selection_keyboard(bookings, action_prefix):
+    """Generates a keyboard to select a room for a specific action (e.g., 'fd_' or 'food_')."""
+    keyboard = []
+    for b in bookings:
+        room_num = b.get("room_number")
+        room_name = b.get("display_name", "Room")
+        keyboard.append([InlineKeyboardButton(f"🚪 Room {room_num} ({room_name})", callback_data=f"{action_prefix}room_{room_num}")])
+    
+    keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")])
+    return InlineKeyboardMarkup(keyboard)
+
+async def _show_food_menu(query, chat_id, booking):
+    """Internal helper to display the food menu for a specific booking."""
+    user_data.setdefault(chat_id, {})["active_booking"] = booking
+    keyboard = [
+        [InlineKeyboardButton("🥗 Starters", callback_data="food_cat_starters")],
+        [InlineKeyboardButton("🥩 Main Courses", callback_data="food_cat_mains")],
+        [InlineKeyboardButton("🍰 Desserts", callback_data="food_cat_desserts")],
+        [InlineKeyboardButton("🍷 Beverages", callback_data="food_cat_drinks")],
+        [InlineKeyboardButton("🛒 View My Cart", callback_data="food_cart")],
+        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+    ]
+    if chat_id not in food_carts:
+        food_carts[chat_id] = {"items": []}
+    await query.edit_message_text(
+        text=(
+            "🍽️ *In-Room Dining — Apollo Hotel*\n\n"
+            "Welcome to our exclusive In-Room Dining experience.\n"
+            "Browse our curated menu below and add items to your cart.\n\n"
+            f"_Ordering for Room_ **#{booking['room_number']}** ✨"
+        ),
+        reply_markup=InlineKeyboardMarkup([
+            *keyboard,
+            [InlineKeyboardButton("📊 Track Order Status", callback_data="food_status")]
+        ]),
+        parse_mode="Markdown"
+    )
+
+async def _show_food_status_board(query, chat_id):
+    """Internal helper to render the guest's food order status board."""
+    orders = await asyncio.to_thread(get_active_food_orders, chat_id)
+    
+    if not orders:
+        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="order_food")]]
+        await query.edit_message_text(
+            text="📊 *Order Status Board*\n\nYou have no active food orders at the moment. Time to order something delicious? 😋",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+        return
+
+    lines = ["📊 *Live Order Status Board*\n"]
+    for i, order in enumerate(orders, 1):
+        # Format items list
+        try:
+            items = json.loads(order["items"])
+            item_summary = ", ".join([item["name"] for item in items])
+        except:
+            item_summary = order["items"]
+
+        # Map status to emoji
+        status_emoji = {
+            "RECEIVED": "📥",
+            "PREPARING": "🍳",
+            "PLATING": "✨",
+            "EN_ROUTE": "🛎️",
+            "DELIVERED": "✅",
+            "CANCELLED": "❌"
+        }.get(order["status"].upper(), "🔔")
+
+        lines.append(
+            f"{i}. *Order #{order['id']}* (Room {order['room_number']})\n"
+            f"   {status_emoji} Status: `{order['status']}`\n"
+            f"   🍱 Items: _{item_summary}_\n"
+            f"   💰 Total: €{order['total_price']}\n"
+        )
+    
+    keyboard = [
+        [InlineKeyboardButton("🔄 Refresh Status", callback_data="food_status")],
+        [InlineKeyboardButton("🍽️ Back to Menu", callback_data="order_food")],
+        [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
+    ]
+    
+    await query.edit_message_text(
+        text="\n".join(lines),
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
+async def _show_front_desk_menu(query, chat_id, booking):
+    """Internal helper to display the front desk services for a specific booking."""
+    user_data.setdefault(chat_id, {})["active_booking"] = booking
+    keyboard = [
+        [InlineKeyboardButton("🧼 Request Extra Towels", callback_data="fd_towels")],
+        [InlineKeyboardButton("✨ Housekeeping Request", callback_data="fd_housekeeping")],
+        [InlineKeyboardButton("📝 Other Request", callback_data="fd_other")],
+        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+    ]
+    await query.edit_message_text(
+        text=(
+            "🛎️ *Front Desk Services*\n\n"
+            f"Currently assisting Room **#{booking['room_number']}**.\n"
+            "How can our front desk assist you today?"
+        ),
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a welcome message with a menu when the command /start is issued."""
     chat_id = update.effective_chat.id
@@ -189,6 +306,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             text="👋 **Welcome back to the Main Menu!**\n\nWhat can I help you with today?",
             reply_markup=get_main_menu_keyboard(),
+            parse_mode="Markdown"
+        )
+    elif data == "view_my_bookings":
+        bookings = get_all_active_bookings_by_user(chat_id)
+        if not bookings:
+            await query.edit_message_text(
+                text="📋 *My Bookings*\n\nYou have no active bookings at the moment.",
+                reply_markup=get_main_menu_keyboard(),
+                parse_mode="Markdown"
+            )
+            return
+        
+        lines = ["📋 *Your Active Bookings:*\n"]
+        for b in bookings:
+            lines.append(
+                f"🏨 *{b['display_name']}* (Room #{b['room_number']})\n"
+                f"📅 {b['check_in']} to {b['check_out']}\n"
+                f"💳 Status: `{b['status']}`\n"
+            )
+        
+        keyboard = [[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]
+        await query.edit_message_text(
+            text="\n".join(lines),
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
     elif data == "view_rooms":
@@ -283,7 +424,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         room_name = room_info["display_name"] if room_info else "Selected Room"
 
         # Create a pending booking in the database
-        booking_id = create_booking(chat_id, room_type)
+        booking_id = await asyncio.to_thread(create_booking, chat_id, room_type)
 
         # Track the booking session
         booking_sessions[chat_id] = {
@@ -304,28 +445,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text=booking_prompt, reply_markup=cancel_kb, parse_mode="Markdown")
         
     elif data == "order_food":
-        # Show dining categories
-        keyboard = [
-            [InlineKeyboardButton("🥗 Starters", callback_data="food_cat_starters")],
-            [InlineKeyboardButton("🥩 Main Courses", callback_data="food_cat_mains")],
-            [InlineKeyboardButton("🍰 Desserts", callback_data="food_cat_desserts")],
-            [InlineKeyboardButton("🍷 Beverages", callback_data="food_cat_drinks")],
-            [InlineKeyboardButton("🛒 View My Cart", callback_data="food_cart")],
-            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
-        ]
-        # Initialize cart if not exists
-        if chat_id not in food_carts:
-            food_carts[chat_id] = {"items": []}
-        await query.edit_message_text(
-            text=(
-                "🍽️ *In-Room Dining — Apollo Hotel*\n\n"
-                "Welcome to our exclusive In-Room Dining experience.\n"
-                "Browse our curated menu below and add items to your cart.\n\n"
-                "_All dishes are freshly prepared by our award-winning chef._ ✨"
-            ),
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
+        bookings = get_all_active_bookings_by_user(chat_id)
+        # Filter for only checked-in bookings for food service
+        ci_bookings = [b for b in bookings if b.get("status", "").upper().strip() in ["CHECK_IN", "CHECK IN"]]
+        
+        if not ci_bookings:
+            await query.edit_message_text(
+                text="❌ *Access Denied*\n\nRoom service is only available for guests who are currently **Checked In**.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]),
+                parse_mode="Markdown"
+            )
+            return
+
+        if len(ci_bookings) > 1 and "selected_room" not in user_data.get(chat_id, {}):
+            await query.edit_message_text(
+                text="🍽️ *Room Service*\n\nYou have multiple active rooms. Which room would you like to order for?",
+                reply_markup=get_room_selection_keyboard(ci_bookings, "food_"),
+                parse_mode="Markdown"
+            )
+            return
+
+        # Use selected or only room
+        booking = ci_bookings[0] if len(ci_bookings) == 1 else next((b for b in ci_bookings if str(b["room_number"]) == str(user_data[chat_id].get("selected_room"))), ci_bookings[0])
+        await _show_food_menu(query, chat_id, booking)
     elif data.startswith("food_cat_"):
         # Show items in a specific category
         cat_key = data.replace("food_cat_", "")
@@ -450,14 +592,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Verified! Auto-fill room and booking from the user's active booking
-        booking = permission["booking"]
+        # Verified! Auto-fill room and booking from the user's active booking context
+        booking = user_data.get(chat_id, {}).get("active_booking")
+        if not booking:
+            # Fallback for session loss
+            await query.edit_message_text(text="Session lost. Please start over from the menu.")
+            return
+
         room_number = booking["room_number"]
         booking_id = booking["id"]
         total = sum(item["price"] for item in cart["items"])
         items_json = json.dumps(cart["items"])
-        order_id = create_food_order(chat_id, room_number, items_json, total, booking_id)
+        order_id = await asyncio.to_thread(create_food_order, chat_id, room_number, items_json, total, booking_id)
         food_carts[chat_id] = {"items": []}
+        # Clear selection after order
+        if "selected_room" in user_data[chat_id]: del user_data[chat_id]["selected_room"]
         user_states[chat_id] = "MAIN_MENU"
 
         await query.edit_message_text(
@@ -468,7 +617,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"💰 *Total:* €{total}\n\n"
                 "📡 *Live Tracking Activated*\n"
                 "You will receive real-time updates as your meal is prepared:\n"
-                "  🔔 Received → 🍳 Preparing → ✨ Plating → 🛎️ En Route → ✅ Delivered\n\n"
+                "  🔔 Received → 🍳 Preparing → ✨ Plating → ✅ Delivered\n\n"
                 "_Sit back and relax — your feast is on its way!_ 🥂"
             ),
             parse_mode="Markdown"
@@ -666,8 +815,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "confirm_booking":
         if chat_id in booking_sessions:
             session = booking_sessions[chat_id]
-            # Save final info to DB
-            update_booking_guest_info(
+            # Save final info to DB (Offload to thread as it triggers sync)
+            await asyncio.to_thread(
+                update_booking_guest_info,
                 session["booking_id"],
                 session["guest_name"],
                 session["guest_email"],
@@ -762,32 +912,55 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     elif data == "front_desk":
-        keyboard = [
-            [InlineKeyboardButton("🧼 Request Extra Towels", callback_data="fd_towels")],
-            [InlineKeyboardButton("✨ Housekeeping Request", callback_data="fd_housekeeping")],
-            [InlineKeyboardButton("📝 Other Request", callback_data="fd_other")],
-            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
-        ]
-        await query.edit_message_text(
-            text="🛎️ *Front Desk Services*\n\nHow can our front desk assist you today?",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
-    elif data.startswith("fd_"):
-        # 1. Guest Validation Check
-        booking = get_booking_by_user(chat_id)
-        if not booking:
+        # Guest Validation Check
+        bookings = get_all_active_bookings_by_user(chat_id)
+        # Only checked in can use FD
+        ci_bookings = [b for b in bookings if b.get("status", "").upper().strip() in ["CHECK_IN", "CHECK IN"]]
+        
+        if not ci_bookings:
             await query.edit_message_text(
                 text=(
                     "⚠️ *Access Restricted*\n\n"
-                    "Front Desk services are only available for checked-in guests.\n"
-                    "I couldn't find an active booking for your account.\n\n"
-                    "Please contact our physical reception or book a room first."
+                    "Front Desk services are only available for guests who have already **Checked In** to the hotel."
                 ),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]]),
                 parse_mode="Markdown"
             )
             return
+
+        if len(ci_bookings) > 1 and "selected_room" not in user_data.get(chat_id, {}):
+            await query.edit_message_text(
+                text="🛎️ *Front Desk Services*\n\nYou have multiple active rooms. Which room is this request for?",
+                reply_markup=get_room_selection_keyboard(ci_bookings, "fd_"),
+                parse_mode="Markdown"
+            )
+            return
+
+        # Proceed with context
+        booking = ci_bookings[0] if len(ci_bookings) == 1 else next((b for b in ci_bookings if str(b["room_number"]) == str(user_data[chat_id].get("selected_room"))), ci_bookings[0])
+        await _show_front_desk_menu(query, chat_id, booking)
+    elif data.startswith("fd_"):
+        # Handle Room Selection for Multi-room users
+        if data.startswith("fd_room_"):
+            room_num = data.replace("fd_room_", "")
+            user_data.setdefault(chat_id, {})["selected_room"] = room_num
+            # Find the specific booking to pass to the helper
+            bookings = get_all_active_bookings_by_user(chat_id)
+            booking = next((b for b in bookings if str(b["room_number"]) == str(room_num)), None)
+            if booking:
+                return await _show_front_desk_menu(query, chat_id, booking)
+            else:
+                await query.edit_message_text("❌ Error selecting room. Please try again.")
+                return
+
+        # 1. Guest Validation Check
+        booking = user_data.get(chat_id, {}).get("active_booking")
+        if not booking:
+            # Fallback check
+            booking = get_booking_by_user(chat_id)
+            if not booking or booking.get("status", "").upper().strip() not in ["CHECK_IN", "CHECK IN"]:
+                # ... restricted message ...
+                pass
 
         room_number = booking["room_number"]
         if chat_id not in user_data:
@@ -848,7 +1021,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             svc = service_map.get(pending)
             if svc:
-                create_service_request(chat_id, svc[0], f"Requested via Telegram")
+                await asyncio.to_thread(create_service_request, chat_id, svc[0], f"Requested via Telegram")
                 keyboard = [
                     [InlineKeyboardButton("🛎️ More Services", callback_data="front_desk")],
                     [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
@@ -863,7 +1036,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "fd_confirm_other":
         details = user_data.get(chat_id, {}).get("service_other_text", "No details")
-        create_service_request(chat_id, "OTHER", details)
+        await asyncio.to_thread(create_service_request, chat_id, "OTHER", details)
         user_states[chat_id] = "MAIN_MENU"
         keyboard = [
             [InlineKeyboardButton("🛎️ More Services", callback_data="front_desk")],
@@ -879,11 +1052,75 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown"
         )
 
-    elif data == "coming_soon" or data == "human_support":
+    elif data == "coming_soon":
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]
         await query.edit_message_text(
             text="🚧 *This feature is currently under construction.*\n\nPlease return to the main menu.",
             reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+
+    elif data.startswith("food_room_"):
+        room_num = data.replace("food_room_", "")
+        user_data.setdefault(chat_id, {})["selected_room"] = room_num
+        # Find the specific booking to pass to the helper
+        bookings = get_all_active_bookings_by_user(chat_id)
+        booking = next((b for b in bookings if str(b["room_number"]) == str(room_num)), None)
+        if booking:
+            return await _show_food_menu(query, chat_id, booking)
+        else:
+            await query.edit_message_text("❌ Error selecting room. Please try again.")
+            return
+
+    elif data == "food_status":
+        await _show_food_status_board(query, chat_id)
+
+    elif data == "human_support":
+        # Guest Validation Check (Optional for calling)
+        booking = get_booking_by_user(chat_id)
+        
+        support_text = (
+            "👩‍💼 *Apollo Hotel — Guest Support*\n\n"
+            "How would you like to speak with our staff today?\n\n"
+            "• **Call Reception**: +84 24 3825 8888\n"
+            "• **WhatsApp**: +84 90 123 4567\n"
+        )
+        await query.edit_message_text(
+            text=support_text,
+            reply_markup=get_support_keyboard(),
+            parse_mode="Markdown"
+        )
+
+    elif data == "fd_request_human":
+        booking = get_booking_by_user(chat_id)
+        if not booking or booking.get("status", "").upper().strip() not in ["CHECK_IN", "CHECK IN"]:
+            await query.edit_message_text(
+                text=(
+                    "⚠️ *Access Restricted*\n\n"
+                    "Staff visits can only be requested by checked-in guests.\n"
+                    "Please use the Call or WhatsApp options above for general assistance."
+                ),
+                reply_markup=get_support_keyboard(),
+                parse_mode="Markdown"
+            )
+            return
+
+        room_number = booking["room_number"]
+        # Log URGENT request in background thread
+        await asyncio.to_thread(
+            create_service_request, 
+            chat_id, 
+            "URGENT_SUPPORT", 
+            "Guest requested an immediate staff visit via Telegram button."
+        )
+        
+        await query.edit_message_text(
+            text=(
+                "✅ *Request Logged!*\n\n"
+                f"Our front desk has been notified for **Room #{room_number}**.\n"
+                "A staff member will be with you shortly. Thank you!"
+            ),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Menu", callback_data="main_menu")]]),
             parse_mode="Markdown"
         )
 
@@ -1013,7 +1250,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
 
             # Save dates to DB and assign a physical room
-            assigned_room = update_booking_dates(session["booking_id"], ci_str, co_str, nights)
+            assigned_room = await asyncio.to_thread(update_booking_dates, session["booking_id"], ci_str, co_str, nights)
             session["step"] = "WAITING_NAME"
             session["room_number"] = assigned_room
 
@@ -1271,7 +1508,7 @@ async def cmd_hotels_room(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=chat_id,
         text="🏨 *Apollo Hotel Room Categories*\n\nPlease select a room type to view details:",
-        reply_markup=get_room_categories_keyboard(),
+        reply_markup=get_rooms_keyboard(),
         parse_mode="Markdown"
     )
 
