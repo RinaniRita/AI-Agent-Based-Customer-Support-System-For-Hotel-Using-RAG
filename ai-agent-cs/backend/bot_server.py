@@ -970,8 +970,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if data in ["fd_towels", "fd_housekeeping", "fd_other"]:
             user_data[chat_id]["pending_service"] = data
             keyboard = [
-                [InlineKeyboardButton("✅ Yes, that's correct", callback_data="fd_room_yes")],
-                [InlineKeyboardButton("❌ No, incorrect", callback_data="fd_room_no")]
+                [InlineKeyboardButton("✅ Yes, that's correct", callback_data="fd_verify_yes")],
+                [InlineKeyboardButton("❌ No, incorrect", callback_data="fd_verify_no")]
             ]
             await query.edit_message_text(
                 text=(
@@ -985,7 +985,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # 3. Handle Verification Results
-        if data == "fd_room_no":
+        if data == "fd_verify_no":
             await query.edit_message_text(
                 text=(
                     "🙇 *Room Mismatch*\n\n"
@@ -997,7 +997,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        if data == "fd_room_yes":
+        if data == "fd_verify_yes":
             pending = user_data[chat_id].get("pending_service")
             
             if pending == "fd_other":

@@ -1,19 +1,12 @@
+import sys
 import subprocess
 import os
 
 def run():
-    # Use absolute paths to be safe
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    venv_python = os.path.join(project_root, ".venv", "Scripts", "python.exe")
-    
-    if not os.path.exists(venv_python):
-        # Alternative: check in current dir
-        venv_python = os.path.join(os.path.dirname(__file__), ".venv", "Scripts", "python.exe")
-
     print(f"🤖 Starting Telegram Bot...")
-    print(f"🐍 Using Python: {venv_python}")
+    print(f"🐍 Using Python: {sys.executable}")
 
-    cmd = [venv_python, "-m", "backend.bot_server"]
+    cmd = [sys.executable, "-m", "backend.bot_server"]
     
     try:
         subprocess.run(cmd, check=True, cwd=os.path.dirname(__file__))

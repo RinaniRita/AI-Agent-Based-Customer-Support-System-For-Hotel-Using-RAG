@@ -22,7 +22,6 @@ from typing import Dict, Any, List, Optional
 
 from ..services.llm_client import llm_client
 from ..services.rag_service import RAGService
-from ..config import OLLAMA_BASE_URL, OLLAMA_MODEL
 
 # Database helpers
 import sys, os
@@ -110,31 +109,28 @@ def _load_prompt(filename: str) -> str:
 
 INTENT_PROMPT = _load_prompt("intent_classifier.md")
 FALLBACK_PROMPT = _load_prompt("mini_agent_fallback.md")
-CUSTOMER_SUPPORT_PROMPT = _load_prompt("customer_support.md")
+CUSTOMER_SUPPORT_PROMPT = (
+    _load_prompt("customer_support.md") + "\n\n" +
+    _load_prompt("rag_grounding_and_anti_hallucination.md") + "\n\n" +
+    _load_prompt("formatting_guidelines_prompt.md") + "\n\n" +
+    _load_prompt("safety_and_topic_boundaries.md") + "\n\n" +
+    _load_prompt("escalation_and_routing_protocol.md")
+)
 
 # Initialize RAG service for GENERAL intent queries
 _rag_service = RAGService()
 
 
 def classify_intent(user_input: str) -> str:
-    """Ask Ollama to classify the user's intent into one of four labels."""
+    """Ask LLM to classify the user's intent into one of predefined labels."""
     try:
-        response = llm_client.client.chat(
-            model=llm_client.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a strict intent classifier. Reply with exactly one word.",
-                },
-                {
-                    "role": "user",
-                    "content": INTENT_PROMPT.format(message=user_input),
-                },
-            ],
-            options={"num_predict": 10, "temperature": 0.0},
+        raw_response = llm_client.generate_response(
+            prompt=INTENT_PROMPT.format(message=user_input),
+            system_prompt="You are a strict intent classifier. Reply with exactly one word.",
+            temperature=0.0
         )
-        raw = response["message"]["content"].strip().upper()
-        # Sanitise: take only the first word in case Ollama adds extras
+        raw = raw_response.strip().upper()
+        # Sanitise: take only the first word in case LLM adds extras
         label = raw.split()[0] if raw else "GENERAL"
         allowed = ("GET_ROOMS", "RECOMMEND", "BOOK", "ORDER_FOOD", "MY_BOOKING",
                    "FOOD_AVAILABILITY", "ORDER_STATUS", "ROOM_AVAILABILITY", "ROOM_STATUS", "SERVICE_REQUEST", "GENERAL")

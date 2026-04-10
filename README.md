@@ -1,115 +1,102 @@
-# AI-Agent-Based-Hotel-Management-System (Pro)
+# 🏨 Luxury Hotel AI Agent Management System (V2)
 
-## 🏨 Introduction
+## ✨ Overview
+A professional, production-ready AI Agent framework designed to revolutionize hotel operations. This system integrates **Google Gemini 1.5 Flash**, **RAG (Retrieval-Augmented Generation)**, and a **Real-Time Physical Inventory Engine** into a unified Telegram interface.
 
-This is a production-ready, professional AI agent framework designed to manage hotel operations through a unified Telegram interface. It combines **Autonomous AI Agents**, **Retrieval-Augmented Generation (RAG)**, and a **Physical Inventory Engine** to provide guests with a seamless, context-aware experience while ensuring 100% data isolation and security.
-
-## 🚀 Key Features
-
-- **🔐 User-Based Access Control**: All bookings and food orders are strictly isolated by Telegram ID. Guests can only view their own reservations.
-- **🛡️ "Check-In" Security Policy**: Room service (Food Ordering) is strictly limited to guests who are physically checked into the hotel.
-- **🤖 Hybrid AI Engine**: Supports both **Google Gemini 2.5 Flash** (Cloud) for high-performance hosting and **Ollama** (Local) for offline privacy.
-- **🎛️ Multi-Room Dashboard**: Advanced support for guests with multiple active bookings, providing a unified interface to manage each room independently.
-- **📊 Live Order Tracker**: Guest-facing real-time status board for food orders (Received → Preparing → Plating → En Route → Delivered).
-- **🔄 Real-Time Bi-Directional Sync**: Instant synchronization between the local SQLite database and Google Sheets staff dashboard.
-- **🥘 Precision Inventory**: Tracks 40 physical rooms and a real-time food menu with automatic stock subtraction.
+Built for the modern hospitality industry, it handles everything from secure bookings and in-room dining to front-desk services with 100% data isolation and real-time Google Sheets synchronization.
 
 ---
 
-## 🏗️ Project Structure
+## 🚀 Key Features
 
-The project follows a modular, professional Python architecture, isolating logic into specialized layers:
+*   **🤖 Advanced AI Concierge**: Powered by **Google Gemini**, providing warm, professional, and highly accurate answers grounded in your hotel's private Knowledge Base.
+*   **🔐 Secure Identity Mapping**: Telegram IDs are hard-linked to bookings. Guests never need to remember a room number; the bot knows exactly who they are and where they are staying.
+*   **🛡️ Checked-In Policy Enforcement**: Room service and front-desk requests are strictly limited to guests who are currently **"Checked In"** in the system.
+*   **🍽️ Interactive In-Room Dining**: A full digital menu with category browsing, wine pairings, and a **Live Order Tracker** (Received → Preparing → Plating → Delivered).
+*   **🔄 Bi-Directional Google Sheets Sync**: Instant synchronization between the local SQLite database and a staff-facing Google Sheet. Staff can update statuses in the sheet, and the bot notifies the guest instantly via Telegram.
+*   **📦 Dockerized Deployment**: Fully containerized architecture for reliable "one-click" deployment across any cloud provider (Koyeb, Railway, Render, or VPS).
+
+---
+
+## 🏗️ Project Architecture
 
 ```text
 ai-agent-cs/
 ├── backend/
-│   ├── api_server.py        # FastAPI API (Static Frontend Webhook)
-│   ├── bot_server.py        # Telegram Bot Entry Point & State Machine
-│   ├── config.py            # Central Configuration & Environment Loading
-│   ├── agent/               # AI Intel: Logic, Prompts, and Intent Routers
-│   ├── database/            # Data Layer: Seeding, Migrations, and SQL logic
-│   ├── data_scripts/        # KB Ingestion: FAISS Vector Store build scripts
-│   └── services/            # Business Logic: Room, Food, User, and Sheets logic
+│   ├── api_server.py        # FastAPI: Handles external webhooks (Sheets/Web)
+│   ├── bot_server.py        # Telegram Bot: Main State Machine & UX
+│   ├── agent/               # AI Logic: Intent classifiers & Prompt engineering
+│   ├── database/            # Data Layer: Physical room inventory & SQL logic
+│   ├── data_scripts/        # KB Ingest: Auto-builds FAISS Vector Stores
+│   └── services/            # Business Logic: Room, Food, User, and Sync services
 ├── data/
-│   ├── knowledge_base/      # Official Hotel Markdown Documentation
-│   ├── vector_store/        # FAISS Index & Embeddings
-│   └── hotel_data.db        # Live SQLite Production Database
-├── frontend/                # Glassmorphism Static Web UI
-└── README.md
+│   ├── knowledge_base/      # Your Hotel's Markdown documentation
+│   ├── vector_store/        # FAISS Index (Generated automatically)
+│   └── hotel_data.db        # Production SQLite Database
+├── Dockerfile               # Production Container Definition
+└── entrypoint.sh            # Automated Database & RAG Initializer
 ```
 
 ---
 
-## ⚙️ Setup & Startup
+## 🛠️ Quick Setup (Docker)
 
-### 1. Requirements
-- Python 3.9+
-- **Google Gemini API Key** (Required for 24/7 cloud hosting)
-- **Ollama** (Optional fallback for local-only execution)
-- Ngrok (for Google Sheets/GitHub Pages tunnels)
+The fastest way to get the system running is using Docker.
 
-### 2. Initialization
+### 1. Configure Environment
+Create a `.env` file in the root directory:
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Seed the 40 physical rooms
-python -m backend.database.setup_db
-
-# 3. Ingest the Knowledge Base (RAG)
-python -m backend.data_scripts.ingest_kb
+GEMINI_API_KEY=your_key_here
+TELEGRAM_BOT_TOKEN=your_token_here
+GOOGLE_SHEETS_WEBHOOK_URL=your_apps_script_url
+BACKEND_WEBHOOK_URL=your_ngrok_or_domain_url
 ```
 
-### 3. Execution (Independent Service Startup)
-For the most stable experience, you should run the API and Bot in two separate terminal windows using these dedicated helper scripts:
+### 2. Build & Run
+```bash
+# Build the production image
+docker build -t hotel-ai-agent .
 
-- **Terminal 1 (API Server)**:
-  `..\.venv\Scripts\python.exe start_api_server.py`
-- **Terminal 2 (Telegram Bot)**:
-  `..\.venv\Scripts\python.exe start_telegram_bot.py`
-
----
-
-## 📊 Google Sheets Two-Way Sync Guide
-
-This system uses a **Direct-Push Webhook Architecture** to ensure that your local database and staff spreadsheet are always identical.
-
-### A. Local to Sheet (Push)
-1. In your `.env`, set your `GOOGLE_SHEETS_WEBHOOK_URL` provided by your Apps Script.
-2. Every time a guest books a room or orders food via Telegram, the system instantly pushes the data to the Cloud.
-
-### B. Sheet to Local (Pull)
-To allow staff to edit the Google Sheet and have it update the Telegram bot in real-time:
-1. **Ngrok Tunnel**: Run `ngrok http 8000`.
-2. **Apps Script**: Copy your Ngrok URL and paste it into the `webhookUrl` variable in your Google Apps Script editor.
-3. **Trigger**: Set an `On Edit` trigger in the Apps Script dashboard.
-4. **Result**: Changing a "Status" in Google Sheets (e.g., from `BOOKED` to `CHECK_IN` or updating a food order to `PLATING`) will instantly send a professional Telegram notification to the guest and update their live status board!
+# Run the container (Maps data for persistence)
+docker run -d \
+  --name hotel-agent \
+  -p 8000:8000 \
+  --env-file .env \
+  -v "$(pwd)/data:/app/data" \
+  hotel-ai-agent
+```
+*Note: The container automatically initializes the database and ingests the knowledge base on the first run.*
 
 ---
 
-## 🛎️ Guest Services & Multi-Room Experience
+## 📊 Staff Management (Google Sheets)
 
-The system is optimized for high-value guests who may book multiple rooms simultaneously.
+The system is designed to work alongside your existing staff workflows in Google Sheets.
 
-1. **"My Bookings" Dashboard**: Guests can view all their active/pending rooms, dates, and payment statuses in one view.
-2. **Smart Room Dispatcher**: When ordering food or requesting service, the bot intelligently asks which room the request is for if the guest has multiple active bookings.
-3. **Live Status Board**: A dedicated "Track My Orders" interface in the Telegram bot allows guests to see the exact stage of their meal, matching the kitchen's progress.
-
----
-
-## 🛡️ Security & Privacy Compliance
-
-- **Isolation**: Telegram IDs are hash-linked to bookings. No room number entry is required, preventing unauthorized users from "guessing" other guests' rooms.
-- **Validation**:
-    - **Food Ordering**: The system queries the `status` column. If the guest is not `CHECK_IN`, the order is blocked.
-    - **Inventory**: Atomic database transactions prevent double-booking the same physical room.
-- **Data Privacy**: 
-    - **Cloud Mode**: Uses Google Gemini via API (Fast, Cloud-Native).
-    - **Local Mode**: All AI processing is performed **locally** via Ollama. No guest data, chat history, or booking info ever leaves your hardware.
+1.  **Staff Editing**: When staff updates a status to `CHECK_IN` or `CHECK_OUT` in the spreadsheet, the bot instantly sends a professional notification to the guest.
+2.  **Kitchen Updates**: When the kitchen marks a food order as `DELIVERED` in the sheet, the guest's "Track Order" board updates in real-time.
+3.  **Data Capture**: Every booking now captures the **Guest Email**, Phone, and Room Type for your CRM.
 
 ---
 
-## 🧹 Database Maintenance
-To wipe all test data and reset the 40 physical rooms to "Available":
-1. Delete `data/hotel_data.db`.
-2. Run `python -m backend.database.setup_db`.
+## 🤖 AI Concierge Intelligence
+
+The bot doesn't just "chat"—it thinks. It uses a multi-stage intent classifier:
+1.  **Intent Classifier**: Determines if the user wants to book, order food, or just ask a question.
+2.  **Menu Routing**: A simple query like "I'm hungry" or "menu" bypasses general chat and instantly opens the interactive dining cards.
+3.  **RAG Grounding**: General questions about WiFi, pet policies, or local area info are strictly answered using your provide Markdown files in `data/knowledge_base/` to prevent AI hallucinations.
+
+---
+
+## 🧽 Maintenance & Cleaning
+To reset the system for a new testing phase:
+1.  Stop the container: `docker stop hotel-agent`
+2.  Delete the database: `rm data/hotel_data.db`
+3.  Start the container: The `entrypoint.sh` will auto-generate a fresh 40-room inventory and re-index the Knowledge Base.
+
+---
+
+## 🛡️ Security & Privacy
+*   **Privacy**: Powered by Gemini 1.5 Flash via API.
+*   **Isolation**: Strict row-level security based on Telegram Chat IDs.
+*   **Validation**: Regex-based input validation for names and emails ensures high-quality data.

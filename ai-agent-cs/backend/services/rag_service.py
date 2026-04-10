@@ -1,4 +1,3 @@
-from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
 from typing import List
@@ -6,8 +5,8 @@ import logging
 import json
 import os
 
+from .llm_client import llm_client
 from ..config import (
-    OLLAMA_EMBEDDING_MODEL,
     VECTOR_STORE_PATH,
     FAISS_INDEX_FILE,
     METADATA_FILE,
@@ -19,24 +18,17 @@ logger = logging.getLogger(__name__)
 class RAGService:
     def __init__(
         self,
-        embedding_model: str = OLLAMA_EMBEDDING_MODEL,
         vector_store_path: str = VECTOR_STORE_PATH,
     ):
         """
-        Initialize RAG service with embedding model and FAISS index.
-
-        Args:
-            embedding_model: Name of the SentenceTransformer model
-            vector_store_path: Path to the vector store directory
+        Initialize RAG service with Gemini-powered embeddings and FAISS index.
         """
         try:
             self.vector_store_path = vector_store_path
             os.makedirs(self.vector_store_path, exist_ok=True)
 
-            self.embedder = SentenceTransformer(embedding_model)
-            # Dimension should match the embedding model; 384 is common for MiniLM.
-            # If you change models, adjust or infer as needed.
-            self.dimension = 384
+            # Gemini text-embedding-004 uses 768 dimensions
+            self.dimension = 768
             self.index = faiss.IndexFlatL2(self.dimension)
             self.documents: List[str] = []
             self.metadata: List[dict] = []
@@ -45,7 +37,7 @@ class RAGService:
             self._load_vector_store()
 
             logger.info(
-                f"RAG service initialized with model: {embedding_model}, "
+                f"RAG service initialized with Gemini Cloud Embeddings, "
                 f"store: {self.vector_store_path}"
             )
         except Exception as e:
@@ -55,10 +47,9 @@ class RAGService:
     def _load_vector_store(self):
         """Load existing vector store if available."""
         index_path = os.path.join(self.vector_store_path, FAISS_INDEX_FILE)
-        embeddings_path = os.path.join(self.vector_store_path, "embeddings.npy")
         metadata_path = os.path.join(self.vector_store_path, METADATA_FILE)
 
-        if os.path.exists(index_path) and os.path.exists(embeddings_path) and os.path.exists(metadata_path):
+        if os.path.exists(index_path) and os.path.exists(metadata_path):
             try:
                 # Load FAISS index
                 self.index = faiss.read_index(index_path)
@@ -70,6 +61,10 @@ class RAGService:
                     # Extract documents from text_snippet
                     self.documents = [item.get('text_snippet', '') for item in metadata_list]
 
+                # Verify dimension match
+                if self.index.d != self.dimension:
+                    logger.warning(f"Index dimension ({self.index.d}) mismatch with model ({self.dimension}). Index will be reset during next ingestion.")
+
                 logger.info(f"Loaded vector store with {self.index.ntotal} vectors and {len(self.documents)} documents")
             except Exception as e:
                 logger.warning(f"Failed to load vector store: {e}")
@@ -78,51 +73,53 @@ class RAGService:
 
     def add_documents(self, docs: List[str], metadata: List[dict] = None):
         """
-        Add documents to the vector store.
-
-        Args:
-            docs: List of document chunks
-            metadata: Optional list of metadata dicts for each document
+        Add documents to the vector store using Gemini embeddings.
         """
         if not docs:
             return
 
         try:
-            embeddings = self.embedder.encode(docs)
-            self.index.add(embeddings.astype(np.float32))
+            embeddings_list = []
+            for doc in docs:
+                emb = llm_client.generate_embedding(doc)
+                embeddings_list.append(emb)
+            
+            embeddings = np.array(embeddings_list).astype(np.float32)
+            
+            # Check if index matches dimensions
+            if self.index.d != embeddings.shape[1]:
+                logger.warning("Dimension mismatch. Creating new index.")
+                self.dimension = embeddings.shape[1]
+                self.index = faiss.IndexFlatL2(self.dimension)
+
+            self.index.add(embeddings)
             self.documents.extend(docs)
             if metadata:
                 self.metadata.extend(metadata)
             else:
                 self.metadata.extend([{}] * len(docs))
-            logger.info(f"Added {len(docs)} documents to index")
+            logger.info(f"Added {len(docs)} documents to index using Gemini")
         except Exception as e:
             logger.error(f"Failed to add documents: {e}")
             raise
 
-    def retrieve(self, query: str, top_k: int = 4, threshold: float = 1.5) -> List[dict]:
+    def retrieve(self, query: str, top_k: int = 4, threshold: float = 0.8) -> List[dict]:
         """
         Retrieve relevant documents for a query.
-
-        Args:
-            query: Search query
-            top_k: Number of top results to return
-            threshold: Similarity threshold (lower is more similar)
-
-        Returns:
-            List of dicts with 'content', 'score', and 'metadata'
         """
         if len(self.documents) == 0:
             logger.warning("Vector store is empty. Returning empty results.")
             return []
             
         try:
-            query_emb = self.embedder.encode([query]).astype(np.float32)
+            query_emb_list = llm_client.generate_embedding(query)
+            query_emb = np.array([query_emb_list]).astype(np.float32)
+            
             distances, indices = self.index.search(query_emb, min(top_k, len(self.documents)))
 
             results = []
             for dist, idx in zip(distances[0], indices[0]):
-                if idx < len(self.documents) and dist <= threshold:
+                if idx < len(self.documents) and idx != -1:
                     results.append({
                         'content': self.documents[idx],
                         'score': float(dist),
@@ -151,4 +148,4 @@ class RAGService:
             'total_documents': len(self.documents),
             'index_size': self.index.ntotal,
             'dimension': self.dimension
-        }
+        }

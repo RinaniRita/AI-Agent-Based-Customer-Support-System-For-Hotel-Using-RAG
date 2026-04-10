@@ -1,19 +1,18 @@
 import re
 from pathlib import Path
 from typing import List, Dict
-import tiktoken
 
 # -------- CONFIG -------- #
-CHUNK_SIZE = 500
-CHUNK_OVERLAP = 80
-ENCODING_MODEL = "cl100k_base"
+# Switched from tokens to characters for zero-dependency chunking
+# 2000 characters is roughly 400-500 tokens.
+CHUNK_SIZE_CHARS = 2000
+CHUNK_OVERLAP_CHARS = 300
 # ------------------------ #
-
-encoding = tiktoken.get_encoding(ENCODING_MODEL)
 
 
 def count_tokens(text: str) -> int:
-    return len(encoding.encode(text))
+    """Estimates tokens for logging (approx 4 chars per token)."""
+    return len(text) // 4
 
 
 def split_by_headings(content: str) -> List[str]:
@@ -35,17 +34,22 @@ def split_by_headings(content: str) -> List[str]:
 
 
 def chunk_with_overlap(text: str) -> List[str]:
-    tokens = encoding.encode(text)
     chunks = []
+    
+    if len(text) <= CHUNK_SIZE_CHARS:
+        return [text]
 
     start = 0
-    while start < len(tokens):
-        end = start + CHUNK_SIZE
-        chunk_tokens = tokens[start:end]
-        chunk_text = encoding.decode(chunk_tokens)
+    while start < len(text):
+        end = start + CHUNK_SIZE_CHARS
+        chunk_text = text[start:end]
         chunks.append(chunk_text)
 
-        start += CHUNK_SIZE - CHUNK_OVERLAP
+        start += CHUNK_SIZE_CHARS - CHUNK_OVERLAP_CHARS
+        
+        # Avoid infinite loop if overlap is too large
+        if start >= len(text) - 1:
+            break
 
     return chunks
 
@@ -89,9 +93,9 @@ def process_markdown_file(filepath: Path, base_path: Path) -> List[Dict]:
     metadata["folder"] = str(folder_path)
 
     for section in sections:
-        token_count = count_tokens(section)
+        char_count = len(section)
 
-        if token_count <= CHUNK_SIZE:
+        if char_count <= CHUNK_SIZE_CHARS:
             all_chunks.append({
                 "id": f"{filepath.stem}_{chunk_id}",
                 "text": section,

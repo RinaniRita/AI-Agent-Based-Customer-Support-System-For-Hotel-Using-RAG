@@ -12,21 +12,12 @@ else:
     load_dotenv()
 
 # --------------------------------------------------
-# Ollama configuration
+# LLM Providers (Cloud)
 # --------------------------------------------------
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct")
-# Default matches .env.example (nomic-embed-text) so it "fits" out of the box
-OLLAMA_EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
-
-# --------------------------------------------------
-# LLM Providers (Cloud vs Local)
-# --------------------------------------------------
-# Values: "OLLAMA" or "GEMINI"
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "OLLAMA").upper()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # Model names: "gemini-1.5-flash" or "gemini-1.5-pro"
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+
 
 # --------------------------------------------------
 # RAG settings
