@@ -426,12 +426,20 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
         context_docs = [r['content'] for r in rag_results]
 
         if context_docs:
+            # Dynamic Context Injection for WiFi/Identity
+            booking_info = get_my_booking_info(chat_id)
+            dynamic_prompt = CUSTOMER_SUPPORT_PROMPT
+            if booking_info and booking_info.get('room_number'):
+                dynamic_prompt += f"\n\n[GUEST CONTEXT]\nGuest Room Number: {booking_info['room_number']}"
+            else:
+                dynamic_prompt += f"\n\n[GUEST CONTEXT]\nThe guest currently has no active room assignment."
+
             # We have RAG context — generate a grounded response
             logger.info(f"[Agent] GENERAL with {len(context_docs)} RAG docs")
             fallback = llm_client.generate_response(
                 prompt=user_input,
                 context=context_docs,
-                system_prompt=CUSTOMER_SUPPORT_PROMPT,
+                system_prompt=dynamic_prompt,
             )
         else:
             # No relevant docs found — use safety-first fallback

@@ -46,6 +46,17 @@ async def startup():
     init_db()
     logger.info("FastAPI JSON API server started.")
 
+# Serve the frontend statically so everything is bundled in ONE container!
+from fastapi.staticfiles import StaticFiles
+import os
+
+frontend_path = os.path.join(os.path.dirname(__file__), "..", "github_pages_frontend")
+if os.path.exists(frontend_path):
+    app.mount("/frontend", StaticFiles(directory=frontend_path), name="frontend")
+    logger.info(f"Serving frontend from {frontend_path} at /frontend")
+else:
+    logger.warning(f"Frontend directory not found at {frontend_path}")
+
 class ConfirmRequest(BaseModel):
     booking_id: int
 

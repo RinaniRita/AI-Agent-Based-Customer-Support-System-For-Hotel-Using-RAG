@@ -58,6 +58,7 @@ BACKEND_WEBHOOK_URL=your_ngrok_or_domain_url
 docker build -t hotel-ai-agent .
 
 # Run the container (Maps data for persistence)
+docker run -d --env-file .env -p 8000:8000 hotel-ai-agent
 docker run -d \
   --name hotel-agent \
   -p 8000:8000 \
@@ -72,6 +73,7 @@ docker run -d \
 ## 📊 Staff Management (Google Sheets)
 
 The system is designed to work alongside your existing staff workflows in Google Sheets.
+(https://docs.google.com/spreadsheets/d/1NwxIgqOLBtGfAFoCWhNM3BNAlz4F-_psGDuXxV-18Ag/edit?gid=0#gid=0)-Google sheet use to track user's info, booking, food order and user requests.
 
 1.  **Staff Editing**: When staff updates a status to `CHECK_IN` or `CHECK_OUT` in the spreadsheet, the bot instantly sends a professional notification to the guest.
 2.  **Kitchen Updates**: When the kitchen marks a food order as `DELIVERED` in the sheet, the guest's "Track Order" board updates in real-time.
@@ -97,6 +99,6 @@ To reset the system for a new testing phase:
 ---
 
 ## 🛡️ Security & Privacy
-*   **Privacy**: Powered by Gemini 1.5 Flash via API.
+*   **Privacy**: Powered by Gemini 2.5 Flash lite via API.
 *   **Isolation**: Strict row-level security based on Telegram Chat IDs.
 *   **Validation**: Regex-based input validation for names and emails ensures high-quality data.
