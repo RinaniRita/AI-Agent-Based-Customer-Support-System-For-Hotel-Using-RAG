@@ -9,7 +9,9 @@ This is a production-ready, professional AI agent framework designed to manage h
 - **🔐 User-Based Access Control**: All bookings and food orders are strictly isolated by Telegram ID. Guests can only view their own reservations.
 - **🛡️ "Check-In" Security Policy**: Room service (Food Ordering) is strictly limited to guests who are physically checked into the hotel.
 - **🤖 Tool-Calling AI Agent**: Uses Ollama to intelligently classify intents and execute real-time database lookups (Availability, Status, Menu).
-- **📊 Real-Time Bi-Directional Sync**: Instant synchronization between the local SQLite database and Google Sheets.
+- **🎛️ Multi-Room Dashboard**: Advanced support for guests with multiple active bookings, providing a unified interface to manage each room independently.
+- **📊 Live Order Tracker**: Guest-facing real-time status board for food orders (Received → Preparing → Plating → En Route → Delivered).
+- **🔄 Real-Time Bi-Directional Sync**: Instant synchronization between the local SQLite database and Google Sheets staff dashboard.
 - **🥘 Precision Inventory**: Tracks 40 physical rooms and a real-time food menu with automatic stock subtraction.
 
 ---
@@ -80,7 +82,17 @@ To allow staff to edit the Google Sheet and have it update the Telegram bot in r
 1. **Ngrok Tunnel**: Run `ngrok http 8000`.
 2. **Apps Script**: Copy your Ngrok URL and paste it into the `webhookUrl` variable in your Google Apps Script editor.
 3. **Trigger**: Set an `On Edit` trigger in the Apps Script dashboard.
-4. **Result**: Changing a "Status" in Google Sheets (e.g., from `BOOKED` to `CHECK_IN`) will instantly send a Telegram message to the guest!
+4. **Result**: Changing a "Status" in Google Sheets (e.g., from `BOOKED` to `CHECK_IN` or updating a food order to `PLATING`) will instantly send a professional Telegram notification to the guest and update their live status board!
+
+---
+
+## 🛎️ Guest Services & Multi-Room Experience
+
+The system is optimized for high-value guests who may book multiple rooms simultaneously.
+
+1. **"My Bookings" Dashboard**: Guests can view all their active/pending rooms, dates, and payment statuses in one view.
+2. **Smart Room Dispatcher**: When ordering food or requesting service, the bot intelligently asks which room the request is for if the guest has multiple active bookings.
+3. **Live Status Board**: A dedicated "Track My Orders" interface in the Telegram bot allows guests to see the exact stage of their meal, matching the kitchen's progress.
 
 ---
 
