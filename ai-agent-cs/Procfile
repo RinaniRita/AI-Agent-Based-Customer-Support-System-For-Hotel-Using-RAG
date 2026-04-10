@@ -1,0 +1,2 @@
+web: python start_api_server.py
+bot: python start_telegram_bot.py

@@ -119,3 +119,4 @@ urllib3==2.6.3
 fastapi==0.110.0
 
 uvicorn==0.27.1
+google-generativeai==0.8.2
