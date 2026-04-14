@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from backend.database.db_service import (
     get_connection, create_booking, update_booking_guest_info,
     get_room_info, check_availability, get_active_booking_by_room, get_food_order,
-    create_service_request
+    create_service_request, get_all_active_bookings_by_user
 )
 
 # ── Service Layer (modular, SQLite backed) ──────────────────────
@@ -104,8 +104,15 @@ def request_service(telegram_id: int, request_type: str, details: str = "") -> D
 # ──────────────────────────────────────────────
 def _load_prompt(filename: str) -> str:
     path = os.path.join(os.path.dirname(__file__), "ai_prompts", filename)
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        logger.warning(f"Prompt file missing: {filename}. Using empty string as fallback.")
+        return ""
+    except Exception as e:
+        logger.error(f"Error loading prompt {filename}: {e}")
+        return ""
 
 INTENT_PROMPT = _load_prompt("intent_classifier.md")
 FALLBACK_PROMPT = _load_prompt("mini_agent_fallback.md")
@@ -113,10 +120,9 @@ CUSTOMER_SUPPORT_PROMPT = (
     _load_prompt("customer_support.md") + "\n\n" +
     _load_prompt("global_info.md") + "\n\n" +
     _load_prompt("rag_grounding_and_anti_hallucination.md") + "\n\n" +
-    _load_prompt("formatting_guidelines_prompt.md") + "\n\n" +
-    _load_prompt("safety_and_topic_boundaries.md") + "\n\n" +
-    _load_prompt("escalation_and_routing_protocol.md")
+    _load_prompt("formatting_guidelines_prompt.md")
 )
+# Note: Safety and Escalation prompts merged into core files to save tokens
 
 # Initialize RAG service for GENERAL intent queries
 _rag_service = RAGService()
@@ -183,9 +189,27 @@ def _extract_food_item(text: str) -> Optional[str]:
     conn = get_connection()
     rows = conn.execute("SELECT item_name FROM food_menu").fetchall()
     conn.close()
+    
+    # 1. Look for exact matches in DB
     for row in rows:
         if row["item_name"].lower() in text_lower:
             return row["item_name"]
+            
+    # 2. Heuristic: If we see "order a/the [X]" or "have [X]", try to grab the noun
+    # This helps catch items NOT in our DB so we can say "we don't have that"
+    patterns = [
+        r"(?:order|have|get|request|want)\s+(?:a|an|the|some)?\s*([a-z\s]+)(?:\?|\.|!|$)",
+        r"(?:is|do\s+you\s+have)\s+([a-z\s]+)\s+(?:available|in\s+stock|on\s+the\s+menu)\??"
+    ]
+    for pat in patterns:
+        m = re.search(pat, text_lower)
+        if m:
+            potential_item = m.group(1).strip()
+            # Basic cleaning (remove "is it", "please", etc.)
+            potential_item = potential_item.split(" please")[0].split(" is")[0].strip()
+            if len(potential_item) > 2 and potential_item not in ["food", "something to eat", "a meal", "dinner", "lunch", "breakfast", "me a meal", "to order food"]:
+                return f"UNKNOWN:{potential_item}"
+                
     return None
 
 
@@ -195,14 +219,20 @@ def _extract_food_item(text: str) -> Optional[str]:
 def _format_rooms_list(rooms: List[Dict]) -> str:
     """Turn a list of room dicts into a nice Telegram-friendly string."""
     if not rooms:
-        return "😞 Sorry, no rooms match your criteria."
-    lines = ["🏨 *Available Rooms:*\n"]
+        return "😞 I'm sorry, I couldn't find any rooms that match your criteria at the moment."
+    
+    intro = (
+        "🏨 *Welcome to Apollo Hotel Luxury Accommodations!*\n\n"
+        "I would be delighted to share our available room categories with you. "
+        "Each of our rooms is designed to provide a premium experience:\n"
+    )
+    lines = [intro]
     for r in rooms:
         lines.append(
             f"• *{r['display_name']}* — €{r['price_per_night']:.0f}/night "
             f"(up to {r['max_occupancy']} guests)"
         )
-    lines.append("\n_Type \"Book me a room\" to start a reservation!_")
+    lines.append("\n_Type \"Book me a room\" to start your reservation or ask me about any room details!_")
     return "\n".join(lines)
 
 
@@ -210,16 +240,21 @@ def _format_recommendation(rooms: List[Dict], budget: float) -> str:
     """Format budget-filtered rooms."""
     if not rooms:
         return (
-            f"😞 Sorry, we don't have any rooms under €{budget:.0f}/night.\n\n"
-            "_Try a higher budget, or type \"Show me all rooms\" to see everything._"
+            f"😞 I'm sorry, we don't currently have any rooms under €{budget:.0f}/night available.\n\n"
+            "_I recommend trying a slightly higher budget, or type \"Show me all rooms\" to see our full collection._"
         )
-    lines = [f"💰 *Rooms under €{budget:.0f}/night:*\n"]
+    
+    intro = (
+        f"💰 *Curated Options under €{budget:.0f}/night:*\n\n"
+        "I've selected the following rooms that offer exceptional value within your budget:\n"
+    )
+    lines = [intro]
     for r in rooms:
         lines.append(
             f"• *{r['display_name']}* — €{r['price_per_night']:.0f}/night "
             f"(up to {r['max_occupancy']} guests)"
         )
-    lines.append("\n_Type \"Book me a room\" to reserve one of these!_")
+    lines.append("\n_Would you like to reserve one of these rooms, or should I refine my search further?_")
     return "\n".join(lines)
 
 
@@ -273,8 +308,8 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
         # and enters the familiar booking flow.
         return {
             "response": (
-                "🛎️ *Great, let's get you booked!*\n\n"
-                "Please select a room type below to begin your reservation:"
+                "🛎️ *I would be delighted to assist you with your booking!*\n\n"
+                "To ensure everything is perfect for your stay, please select your preferred room type from the options below to begin the reservation process:"
             ),
             "intent": intent,
             "tool_used": "book_room",
@@ -283,14 +318,49 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
 
     # ── ORDER FOOD ──
     elif intent == "ORDER_FOOD":
+        extracted = _extract_food_item(user_input)
+        
+        # Case A: Found a known item
+        if extracted and not extracted.startswith("UNKNOWN:"):
+            item_name = extracted
+            is_available = check_food_inventory(item_name)
+            if is_available:
+                resp = (
+                    f"🛎️ *Excellent choice!*\n\n"
+                    f"Yes, **{item_name.title()}** is currently available. "
+                    "I've opened the menu categories below so you can add it to your cart."
+                )
+            else:
+                alts = suggest_alternative_food(item_name)
+                alts_str = ", ".join(alts) if alts else "our other fantastic menu items"
+                resp = (
+                    f"😞 I'm sorry, our **{item_name.title()}** is currently out of stock.\n\n"
+                    f"Would you like to try: {alts_str} instead?"
+                )
+            return {
+                "response": resp, "intent": intent, "tool_used": "check_food_inventory", "tool_result": item_name
+            }
+            
+        # Case B: Found a specific request but NOT in our DB
+        elif extracted and extracted.startswith("UNKNOWN:"):
+            unknown_item = extracted.replace("UNKNOWN:", "").title()
+            return {
+                "response": (
+                    f"🍽️ *Menu Inquiry*\n\n"
+                    f"I'm sorry, but **{unknown_item}** is not currently on our menu at Apollo Hotel.\n\n"
+                    "Please browse our available categories below to see what else we're serving today!"
+                ),
+                "intent": intent, "tool_used": None, "tool_result": None
+            }
+
+        # Case C: General intent with no specific item found
         return {
             "response": (
-                "🍽️ *Let's get you some food!*\n\n"
-                "I'm opening the In-Room Dining menu for you now."
+                "🍽️ *I would be happy to help you with your dining request!*\n\n"
+                "I am opening our complete In-Room Dining menu for you now. "
+                "From our award-winning appetizers to our chef's signature entrees, we have something to delight every palate."
             ),
-            "intent": intent,
-            "tool_used": "order_food",
-            "tool_result": None,
+            "intent": intent, "tool_used": "order_food", "tool_result": None,
         }
 
     # ── ROOM_AVAILABILITY ──
@@ -396,7 +466,48 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
 
     # ── SERVICE_REQUEST ──
     elif intent == "SERVICE_REQUEST":
-        # Identify service type from message
+        # 1. VALIDATION: Check for active bookings
+        bookings = get_all_active_bookings_by_user(chat_id)
+        
+        if not bookings:
+            return {
+                "response": "😞 I'm sorry, service requests (like towels or cleaning) are available exclusively to our checked-in guests. I couldn't find an active reservation linked to your account.",
+                "intent": intent,
+                "tool_used": "check_user_bookings",
+                "tool_result": "no_booking"
+            }
+
+        # 2. HEURISTIC: Did they mention a room number in their request?
+        mentioned_room = _extract_room_number(user_input)
+        
+        # If multiple rooms, and no room was mentioned, we must ask
+        if len(bookings) > 1 and not mentioned_room:
+            room_list = [str(b['room_number']) for b in bookings]
+            return {
+                "response": (
+                    f"🛎️ *Multiple Rooms Detected*\n\n"
+                    f"I see you have multiple active rooms ({', '.join(room_list)}). "
+                    "Which room should I send this request to?"
+                ),
+                "intent": intent,
+                "tool_used": "request_room_selection",
+                "room_options": room_list, # Will be used by bot_server to show buttons
+                "tool_result": "needs_selection"
+            }
+
+        # 3. ASSIGN ROOM: Use mentioned room, or the only room available
+        target_room = mentioned_room if mentioned_room else bookings[0]['room_number']
+        
+        # Verify mentioned room belongs to the user
+        if target_room not in [b['room_number'] for b in bookings]:
+             return {
+                "response": f"⚠️ I found your request for Room {target_room}, but I only see bookings for rooms {', '.join(str(b['room_number']) for b in bookings)}. Could you please clarify?",
+                "intent": intent,
+                "tool_used": "verify_room_ownership",
+                "tool_result": "invalid_room"
+            }
+
+        # 4. EXECUTE REQUEST
         lowered = user_input.lower()
         service_type = "OTHER"
         if "towel" in lowered: service_type = "TOWELS"
@@ -404,14 +515,14 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
         elif "pillow" in lowered: service_type = "PILLOWS"
         elif "wake up" in lowered: service_type = "WAKE_UP_CALL"
         
-        # Log the request
-        result = request_service(chat_id, service_type, user_input)
+        # Log the request with the specific room_number
+        result = create_service_request(chat_id, service_type, user_input, room_number=target_room)
         
         resp = (
-            f"🛎️ *Front Desk Request Logged*\n\n"
-            f"I've shared your request with our staff:\n"
+            f"🛎️ *Front Desk Request Successfully Logged*\n\n"
+            f"Certainly! I've shared your request with our dedicated staff for **Room {target_room}**:\n"
             f"📝 *Request:* {user_input}\n\n"
-            "Someone will be with you shortly! ✅"
+            "Our team has been notified and someone will be with you shortly to assist. ✅"
         )
         return {
             "response": resp,

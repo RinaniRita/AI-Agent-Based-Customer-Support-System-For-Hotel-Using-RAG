@@ -49,7 +49,7 @@ def build_from_chunks(chunks: List[Dict]):
     """
     chunks: list of dicts each with keys: id, text, metadata
     """
-    logger.info("Generating Gemini embeddings for %d chunks in batches...", len(chunks))
+    logger.info("Generating embeddings for %d chunks in batches...", len(chunks))
     
     vectors = []
     metadata_list = []

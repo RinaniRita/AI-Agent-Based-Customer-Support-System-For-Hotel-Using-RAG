@@ -61,6 +61,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS service_requests (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             telegram_id     INTEGER NOT NULL,
+            room_number     INTEGER, -- Added for multi-room support
             request_type    TEXT NOT NULL,
             details         TEXT,
             status          TEXT NOT NULL DEFAULT 'PENDING',
@@ -98,6 +99,13 @@ def init_db():
         cursor.execute("ALTER TABLE food_orders ADD COLUMN booking_id INTEGER")
         conn.commit()
         logger.info("Migration applied: added booking_id to food_orders.")
+
+    # Migration for service_requests
+    existing_svc_cols = [row[1] for row in cursor.execute("PRAGMA table_info(service_requests)").fetchall()]
+    if 'room_number' not in existing_svc_cols:
+        cursor.execute("ALTER TABLE service_requests ADD COLUMN room_number INTEGER")
+        conn.commit()
+        logger.info("Migration applied: added room_number to service_requests.")
 
     conn.close()
     logger.info("Database initialized successfully.")
@@ -281,12 +289,12 @@ def get_active_booking_by_room(room_number):
 
 # ─── Service Request Queries ────────────────────────────────
 
-def create_service_request(telegram_id, request_type, details=""):
-    """Create a new service request, link to room number, and sync to sheet."""
+def create_service_request(telegram_id, request_type, details="", room_number=None):
+    """Create a new service request, linked to a specific room if provided."""
     conn = get_connection()
     cursor = conn.execute(
-        "INSERT INTO service_requests (telegram_id, request_type, details) VALUES (?, ?, ?)",
-        (telegram_id, request_type, details)
+        "INSERT INTO service_requests (telegram_id, request_type, details, room_number) VALUES (?, ?, ?, ?)",
+        (telegram_id, request_type, details, room_number)
     )
     req_id = cursor.lastrowid
     conn.commit()
@@ -304,16 +312,12 @@ def create_service_request(telegram_id, request_type, details=""):
 
 
 def get_service_request(req_id):
-    """Fetch service request details joined with room_number from active booking."""
+    """Fetch service request details."""
     conn = get_connection()
     row = conn.execute("""
-        SELECT sr.*, b.room_number 
+        SELECT sr.*
         FROM service_requests sr
-        LEFT JOIN bookings b ON sr.telegram_id = b.telegram_id 
-          AND b.status IN ('CHECK_IN', 'CHECK IN', 'CONFIRMED')
         WHERE sr.id = ?
-        ORDER BY b.created_at DESC
-        LIMIT 1
     """, (req_id,)).fetchone()
     conn.close()
     return dict(row) if row else None

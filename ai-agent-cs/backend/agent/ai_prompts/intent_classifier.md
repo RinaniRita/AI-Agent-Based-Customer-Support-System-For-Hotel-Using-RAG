@@ -20,7 +20,8 @@ Rules:
 - ROOM_AVAILABILITY: triggers when the message includes a specific room number AND asks if it is available/free/open/booked.
 - ROOM_STATUS: triggers when the guest asks "what is the status of room X" or "is room X checked in" etc.
 - FOOD_AVAILABILITY: triggers when the guest asks "do you have [food]?", "is [food] available?", "is [food] in stock?"
-- ORDER_FOOD: triggers on "menu", "food menu", "room service", "i want to order food", "show me the menu".
+- ORDER_FOOD: triggers on "menu", "food menu", "room service", "i want to order food", "show me the menu". 
+- FOOD_AVAILABILITY: triggers when the guest asks "do you have [food]?", "is [food] available?", "is [food] in stock?". **If a specific food item is mentioned alongside an order request (e.g., "I'd like to order a Pho Bo"), favor FOOD_AVAILABILITY or ORDER_FOOD; the logic will handle both.**
 - ORDER_STATUS: triggers when the guest asks "where is my order", "what is the status of order X", or asks about delivery.
 - If unsure, reply GENERAL.
 - **Handling Multiple Intents:** If a guest asks about two things (e.g., "What time is breakfast and where is the gym?"), classify as **GENERAL**. This triggers the RAG router which can handle multiple documents.

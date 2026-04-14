@@ -81,11 +81,11 @@ def seed_all():
 
     conn.commit()
     conn.close()
-    print(f"✅ Seeded {len(rooms_data)} room types, {len(rooms_data) * 5} physical rooms, {len(food_data)} food items.")
+    print(f"Success: Seeded {len(rooms_data)} room types, {len(rooms_data) * 5} physical rooms, {len(food_data)} food items.")
 
 
 if __name__ == "__main__":
-    print("🏨 Initializing Luxury Hotel database (40 physical rooms)...")
+    print("Hotel System: Initializing Luxury Hotel database (40 physical rooms)...")
     init_db()
     seed_all()
-    print("✅ Database setup complete! File: data/hotel_data.db")
+    print("Success: Database setup complete! File: data/hotel_data.db")

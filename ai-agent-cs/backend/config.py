@@ -11,13 +11,18 @@ else:
     # Fallback to system env vars only
     load_dotenv()
 
-# --------------------------------------------------
-# LLM Providers (Cloud)
-# --------------------------------------------------
+# Provider Selection: "gemini" or "ollama"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
+
+# Gemini Settings
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_API_KEY_FALLBACK = os.getenv("GEMINI_API_KEY_FALLBACK", "AIzaSyDakHyHfj6TEdTun30VuxxrUFIeIDVMZuU")
-# Model names: "gemini-1.5-flash" or "gemini-1.5-pro"
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+
+# Ollama Settings
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct")
+OLLAMA_EMBED_MODEL = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 
 
 # --------------------------------------------------

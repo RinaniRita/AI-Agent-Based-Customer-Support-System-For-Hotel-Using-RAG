@@ -4,6 +4,31 @@ import re
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, ContextTypes, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from html import escape as html_escape
+
+def escape_markdown_to_html(text: str) -> str:
+    """
+    Decisively prevents Telegram parsing errors by converting 
+    common Markdown to HTML and escaping reserved characters.
+    """
+    if not text:
+        return ""
+    
+    # 1. Escape HTML reserved chars (< > &)
+    safe_text = html_escape(text)
+    
+    # 2. Basic Markdown -> HTML mapping
+    # Bold: **text** -> <b>text</b>
+    safe_text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', safe_text)
+    
+    # 3. Handle Bullets
+    # Standard: * Bullet -> • Bullet
+    safe_text = re.sub(r'^\s*[\*\-]\s+', r'• ', safe_text, flags=re.MULTILINE)
+    
+    # Simple formatting cleanup
+    safe_text = safe_text.replace("`", "") 
+        
+    return safe_text
 from .services.llm_client import llm_client
 from .services.rag_service import RAGService
 from .agent.customer_support_agent import CustomerSupportAgent
@@ -47,6 +72,10 @@ food_carts = {}
 
 # General user data storage
 user_data = {}
+
+# Pending AI service requests (waiting for room selection)
+# Format: { chat_id: { "user_input": str, "intent": str } }
+pending_ai_service_requests = {}
 
 # ── In-Room Dining Menu Data ────────────────────────────────
 DINING_MENU = {
@@ -953,6 +982,37 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await query.edit_message_text("❌ Error selecting room. Please try again.")
                 return
 
+        # Handle AI Agent Room Selection for Service Requests
+        if data.startswith("svc_room_"):
+            room_num = data.replace("svc_room_", "")
+            pending = pending_ai_service_requests.pop(chat_id, None)
+            
+            if not pending:
+                await query.edit_message_text("❌ Session expired. Please try your request again.")
+                return
+
+            user_input = pending["user_input"]
+            
+            # Identify service type (re-using logic from agent_router for consistency)
+            lowered = user_input.lower()
+            service_type = "OTHER"
+            if "towel" in lowered: service_type = "TOWELS"
+            elif "clean" in lowered or "housekeeping" in lowered: service_type = "HOUSEKEEPING"
+            elif "pillow" in lowered: service_type = "PILLOWS"
+            elif "wake up" in lowered: service_type = "WAKE_UP_CALL"
+
+            # Execute Request (Offload to thread)
+            result = await asyncio.to_thread(create_service_request, chat_id, service_type, user_input, room_number=int(room_num))
+
+            safe_text = (
+                f"🛎️ <b>Front Desk Request Logged</b>\n\n"
+                f"I've shared your request with our staff for <b>Room {room_num}</b>:\n"
+                f"📝 <i>Request:</i> {user_input}\n\n"
+                "Someone will be with you shortly! ✅"
+            )
+            await query.edit_message_text(text=safe_text, parse_mode="HTML")
+            return
+
         # 1. Guest Validation Check
         booking = user_data.get(chat_id, {}).get("active_booking")
         if not booking:
@@ -1130,33 +1190,40 @@ def parse_dates(text: str):
     text = text.strip()
     patterns = [
         # "April 5 to April 8" or "April 5 - April 8"
-        r'(\w+ \d{1,2})\s*(?:to|-)\s*(\w+ \d{1,2})',
+        r'([a-zA-Z]+ \d{1,2})\s*(?:to|-)\s*([a-zA-Z]+ \d{1,2})',
         # "2026-04-05 to 2026-04-08"
         r'(\d{4}-\d{2}-\d{2})\s*(?:to|-)\s*(\d{4}-\d{2}-\d{2})',
+        # "5/4 to 8/4" or "5-4 to 8-4"
+        r'(\d{1,2}[/-]\d{1,2})\s*(?:to|–|-)\s*(\d{1,2}[/-]\d{1,2})',
     ]
+    
+    # Supported formats for strptime
+    fmts = [
+        "%Y-%m-%d", 
+        "%B %d", "%b %d",   # April 5, Apr 5
+        "%d/%m", "%d-%m",   # 5/4, 5-4
+        "%m/%d", "%m-%d"    # 4/5, 4-5 (Secondary fallback)
+    ]
+
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            try:
-                d1_str, d2_str = match.group(1), match.group(2)
-                # Try parsing with year
-                for fmt in ["%Y-%m-%d", "%B %d", "%b %d"]:
-                    try:
-                        d1 = datetime.strptime(d1_str, fmt)
-                        d2 = datetime.strptime(d2_str, fmt)
-                        # If no year was parsed, assume current/next year
-                        if d1.year == 1900:
-                            now = datetime.now()
-                            d1 = d1.replace(year=now.year)
-                            d2 = d2.replace(year=now.year)
-                            if d1 < now:
-                                d1 = d1.replace(year=now.year + 1)
-                                d2 = d2.replace(year=now.year + 1)
-                        return d1, d2
-                    except ValueError:
-                        continue
-            except Exception:
-                continue
+            d1_str, d2_str = match.group(1), match.group(2)
+            for fmt in fmts:
+                try:
+                    d1 = datetime.strptime(d1_str, fmt)
+                    d2 = datetime.strptime(d2_str, fmt)
+                    
+                    # Year handling
+                    now = datetime.now()
+                    if d1.year == 1900:
+                        # As requested: Always use current year
+                        d1 = d1.replace(year=now.year)
+                        d2 = d2.replace(year=now.year)
+                        
+                    return d1, d2
+                except ValueError:
+                    continue
     return None, None
 
 
@@ -1446,12 +1513,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )
-        else:
+        elif result.get("room_options"):
+            # Multi-room scenario detected by agent
+            pending_ai_service_requests[chat_id] = {
+                "user_input": user_message,
+                "intent": result.get("intent")
+            }
+            
+            # Build buttons for each room
+            keyboard = []
+            for room_num in result["room_options"]:
+                keyboard.append([InlineKeyboardButton(f"🚪 Room {room_num}", callback_data=f"svc_room_{room_num}")])
+            keyboard.append([InlineKeyboardButton("🔙 Cancel", callback_data="main_menu")])
+
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=result['response'],
-                reply_markup=get_ai_chat_keyboard(),
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
+            )
+        else:
+            safe_text = escape_markdown_to_html(result['response'])
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=safe_text,
+                reply_markup=get_ai_chat_keyboard(),
+                parse_mode="HTML"
             )
 
     except Exception as e:

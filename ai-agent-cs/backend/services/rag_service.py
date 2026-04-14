@@ -21,13 +21,13 @@ class RAGService:
         vector_store_path: str = VECTOR_STORE_PATH,
     ):
         """
-        Initialize RAG service with Gemini-powered embeddings and FAISS index.
+        Initialize RAG service with LLM-powered embeddings and FAISS index.
         """
         try:
             self.vector_store_path = vector_store_path
             os.makedirs(self.vector_store_path, exist_ok=True)
 
-            # Gemini text-embedding-004 uses 768 dimensions
+            # Default to 768 dimensions (works for text-embedding-004 and nomic-embed-text)
             self.dimension = 768
             self.index = faiss.IndexFlatL2(self.dimension)
             self.documents: List[str] = []
@@ -37,8 +37,7 @@ class RAGService:
             self._load_vector_store()
 
             logger.info(
-                f"RAG service initialized with Gemini Cloud Embeddings, "
-                f"store: {self.vector_store_path}"
+                f"RAG service initialized with Provider: {llm_client.provider}"
             )
         except Exception as e:
             logger.error(f"Failed to initialize RAG service: {e}")
@@ -98,7 +97,7 @@ class RAGService:
                 self.metadata.extend(metadata)
             else:
                 self.metadata.extend([{}] * len(docs))
-            logger.info(f"Added {len(docs)} documents to index using Gemini")
+            logger.info(f"Added {len(docs)} documents to index using {llm_client.provider}")
         except Exception as e:
             logger.error(f"Failed to add documents: {e}")
             raise

@@ -9,6 +9,7 @@ anyio
 
 # AI & Database
 google-genai>=1.0.0
+ollama
 faiss-cpu
 numpy
 nest-asyncio

@@ -77,7 +77,7 @@ def remove_metadata_block(content: str) -> str:
 
 
 def process_markdown_file(filepath: Path, base_path: Path) -> List[Dict]:
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
 
     metadata = extract_metadata(content)
