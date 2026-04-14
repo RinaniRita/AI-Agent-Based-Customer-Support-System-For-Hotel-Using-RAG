@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest claims an item purchased from the on-site boutique is defective and demands a refund outside of standard policy.
 - The guest requests a dedicated personal shopper for high-end luxury goods.
 - A guest asks the hotel to act as a proxy to purchase and ship restricted or highly valuable luxury items.
+

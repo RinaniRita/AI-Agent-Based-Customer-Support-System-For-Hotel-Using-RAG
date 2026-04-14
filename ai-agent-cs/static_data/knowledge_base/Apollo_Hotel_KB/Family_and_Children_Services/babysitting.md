@@ -14,7 +14,7 @@ We partner with trusted, licensed professionals to provide reliable childcare se
 ## Booking and Rates
 
 - Notice: A 24-hour advance notice is required to arrange childcare.
-- Rates: $25 per hour, requiring a 3-hour minimum booking.
+- Rates: €25 per hour, requiring a 3-hour minimum booking.
 
 ## Care Providers
 
@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest reports a medical emergency or injury involving a child and the babysitter.
 - The scheduled babysitter fails to arrive at the designated time.
 - A guest requests emergency, immediate childcare without the 24-hour notice.
+

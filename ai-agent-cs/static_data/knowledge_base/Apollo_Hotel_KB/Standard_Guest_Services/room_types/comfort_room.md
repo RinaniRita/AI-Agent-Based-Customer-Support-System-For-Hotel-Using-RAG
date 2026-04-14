@@ -16,3 +16,4 @@ The Comfort Room at **Apollo Hotel** offers a spacious and relaxing atmosphere, 
 - Individually controlled air conditioning
 - Double glazed windows for noise reduction
 - Heated floor in the bathroom
+

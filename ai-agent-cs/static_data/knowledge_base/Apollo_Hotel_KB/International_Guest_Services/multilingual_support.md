@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest cannot communicate in any of our supported languages and is visibly frustrated.
 - The AI itself misunderstands a guest due to a language barrier or complex dialect and cannot resolve their query.
 - A guest requests a certified, professional human translator for an on-site business meeting.
+

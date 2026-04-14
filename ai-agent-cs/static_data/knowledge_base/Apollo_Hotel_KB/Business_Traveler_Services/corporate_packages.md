@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest disputes the validity of their corporate ID and is denied the rate.
 - The guest wants to retroactively apply a corporate rate to a past booking.
 - There is a dispute regarding direct billing to a corporate account.
+

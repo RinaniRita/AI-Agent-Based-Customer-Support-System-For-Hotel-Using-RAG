@@ -18,7 +18,7 @@ We facilitate reliable inbound and outbound shipping services to assist guests w
 
 ## Inbound Packages
 
-- Receiving Fee: $5 per package up to 10 lbs; $10 for packages over 10 lbs.
+- Receiving Fee: €5 per package up to 10 lbs; €10 for packages over 10 lbs.
 - Storage: Packages can be securely held for up to 5 days prior to a guest's arrival.
 
 ## When AI Should Escalate
@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest claims an expected high-value package is missing or lost.
 - A package arrives visibly damaged.
 - A guest requires an emergency, after-hours international shipment.
+

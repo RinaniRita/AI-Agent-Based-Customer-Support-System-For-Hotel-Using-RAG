@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest misses a flight due to a delayed or full hotel shuttle.
 - The guest requires a specialized ADA-accessible vehicle for transport.
 - A guest leaves a valuable item in a private car or the hotel shuttle.
+

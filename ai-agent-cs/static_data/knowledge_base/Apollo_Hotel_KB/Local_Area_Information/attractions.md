@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest requests tickets for a highly exclusive, sold-out event.
 - The guest complains about a third-party tour operator recommended by the hotel.
 - A guest needs specialized accessibility arrangements or private transport for a local tour.
+

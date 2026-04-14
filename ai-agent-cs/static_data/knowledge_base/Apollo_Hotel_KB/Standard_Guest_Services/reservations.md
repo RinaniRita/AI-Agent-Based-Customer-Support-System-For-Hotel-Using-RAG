@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - An underage guest is attempting to book or check in.
 - A guest booked through a third-party site (like Expedia or Booking.com) and is demanding a refund directly from the hotel.
 - The hotel is in an overbooked situation and a guest's reservation needs to be relocated.
+

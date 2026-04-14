@@ -28,3 +28,4 @@ Our most romantic rooms - the Superior Room with a Panoramic Window - are locate
 - **Children:** Not suitable to accommodate children under 6 years old.
 - **Extra Beds / Cots:** It is not possible to place a baby cot or an extra bed in this room.
 - **Pets:** Not allowed.
+

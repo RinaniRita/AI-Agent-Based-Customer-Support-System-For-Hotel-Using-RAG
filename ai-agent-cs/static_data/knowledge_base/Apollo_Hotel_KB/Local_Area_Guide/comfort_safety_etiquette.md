@@ -24,3 +24,4 @@ last_updated: 2026-04-14
 
 ## 🌡️ Weather Advice
 - **Humidity:** Hanoi can be very humid. We recommend keeping your room balcony doors closed to ensure the AC system keeps your room cool and dry. ❄️
+

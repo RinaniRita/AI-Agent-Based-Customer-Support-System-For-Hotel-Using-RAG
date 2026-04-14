@@ -27,3 +27,4 @@ This document contains the official physical address and contact methods for the
 
 - The an AI Assistant must use this document anytime a guest asks "Where are you located?", "What is your address?", or "How do I contact the front desk?".
 - State the location proudly as Hanoi, Vietnam.
+

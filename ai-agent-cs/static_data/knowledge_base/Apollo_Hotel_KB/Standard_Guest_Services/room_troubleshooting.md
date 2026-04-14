@@ -24,3 +24,4 @@ last_updated: 2026-04-14
 
 ## 🛠️ Still Need Help?
 If you encounter any issues with the equipment in your room, please message us with the keyword **"Help"** or tap **"Contact Human"** to have a maintenance specialist visit your room immediately. 🛎️
+

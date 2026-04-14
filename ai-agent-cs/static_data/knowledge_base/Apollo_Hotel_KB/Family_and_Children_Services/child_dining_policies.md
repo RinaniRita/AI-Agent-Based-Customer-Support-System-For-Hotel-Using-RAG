@@ -26,3 +26,4 @@ The AI assistant must escalate if:
 - A child experiences a severe allergic reaction to hotel food.
 - A guest disputes a dining charge that they believe should have been complimentary for their child.
 - A guest requires highly specialized infant formula or baby food not carried by the hotel.
+

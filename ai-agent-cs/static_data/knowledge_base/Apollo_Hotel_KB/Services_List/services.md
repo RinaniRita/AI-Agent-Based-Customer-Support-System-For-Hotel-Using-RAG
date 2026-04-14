@@ -32,6 +32,7 @@ This document lists the official services and amenities provided by Apollo Hotel
 The dedicated reception team provides highly personalized concierge assistance to ensure a flawless stay:
 * **Tours & Tickets**: Assistance with booking city tours, concert/theatre tickets, and purchasing public transport passes.
 * **Limousine Transfers**: We offer premium private vehicle transfers with English-speaking drivers.
-  * **Airport Transfer (One-Way)**: 850 CZK (or local equivalent) per car. 
-  * **Train Station Transfer (One-Way)**: 450 CZK (or local equivalent) per car.
+  * **Airport Transfer (One-Way)**: €45 per car. 
+  * **Train Station Transfer (One-Way)**: €25 per car.
   * *Note*: City transfers, long-distance rides, and private guided sight-seeing tours are available upon advanced request.
+

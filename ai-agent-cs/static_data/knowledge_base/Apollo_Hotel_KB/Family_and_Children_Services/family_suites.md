@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - The internal connecting doors between the family suite rooms are jammed or malfunctioning.
 - A guest demands to exceed the 6-person maximum occupancy for the suite.
 - A family checks in and the promised children's welcome amenities were entirely omitted, causing guest frustration.
+

@@ -20,3 +20,4 @@ Full of sun and light, the Our Superior Rooms at **Apollo Hotel** are beautifull
 ## Policies & Restrictions
 - **Children:** Not suitable for children.
 - **Extra Beds / Cots:** It is not possible to add an extra bed or a baby cot.
+

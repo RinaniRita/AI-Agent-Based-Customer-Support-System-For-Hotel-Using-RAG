@@ -26,3 +26,4 @@ Any personal items left behind by guests are logged and kept securely by Houseke
 We gladly accept packages on behalf of checked-in guests. 
 - The package MUST be addressed to the exact Name registered on the booking. 
 - We will send a Telegram notification to the guest when a package arrives at the Front Desk.
+

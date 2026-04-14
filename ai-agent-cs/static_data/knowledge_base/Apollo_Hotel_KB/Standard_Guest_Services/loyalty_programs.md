@@ -14,7 +14,7 @@ Our loyalty program rewards frequent guests with exclusive perks, points on ever
 ## Tiers and Earning
 
 - Tiers: Silver, Gold, Platinum.
-- Earning: Guests earn 10 points per $1 spent on standard room rates.
+- Earning: Guests earn 10 points per €1 spent on standard room rates.
 
 ## Standard Benefits
 
@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest is missing points from a previous stay and demands an account audit.
 - The guest requests an unearned complimentary tier upgrade.
 - The guest wants to redeem points for an immediate on-site purchase requiring manual approval.
+

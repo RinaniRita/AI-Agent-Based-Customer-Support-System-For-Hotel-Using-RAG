@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest reports a broken computer or network outage.
 - A non-registered guest is attempting to use the business center.
 - A guest requires immediate IT support for a personal device connection.
+

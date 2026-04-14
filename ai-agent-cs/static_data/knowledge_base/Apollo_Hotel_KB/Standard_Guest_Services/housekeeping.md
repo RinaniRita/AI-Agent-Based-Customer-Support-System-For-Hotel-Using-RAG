@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest reports an urgent spill, stain, or cleanliness issue.
 - The guest claims an item is missing from their room after cleaning.
 - A guest requests a deep cleaning due to severe allergies.
+

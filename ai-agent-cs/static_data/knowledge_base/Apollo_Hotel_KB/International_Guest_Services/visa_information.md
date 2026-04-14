@@ -23,3 +23,4 @@ The AI assistant must escalate if:
 - A guest explicitly requests that the hotel officially sponsor their visa application.
 - The guest's visa has expired and they are seeking emergency legal or embassy assistance.
 - A guest demands a refund or disputes a cancellation fee because their travel visa was denied.
+

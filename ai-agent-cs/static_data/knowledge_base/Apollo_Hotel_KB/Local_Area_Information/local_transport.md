@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest is involved in an accident or dispute with a local taxi or ride-share driver.
 - The guest loses a highly valuable item on public transit and needs local authority assistance.
 - A guest is stranded in a remote part of the city and requests an emergency hotel pickup.
+

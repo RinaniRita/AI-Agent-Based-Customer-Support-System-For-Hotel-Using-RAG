@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest insists on combining multiple incompatible promotional offers.
 - The guest disputes a promotional blackout date.
 - A guest claims they were promised a promotion by a third-party booking site that the hotel does not currently honor.
+

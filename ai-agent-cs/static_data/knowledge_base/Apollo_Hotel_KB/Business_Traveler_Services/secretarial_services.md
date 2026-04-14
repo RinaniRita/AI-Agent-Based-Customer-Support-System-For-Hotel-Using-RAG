@@ -18,7 +18,7 @@ For executives requiring dedicated administrative support, we offer professional
 
 ## Services and Rates
 
-- Typing and Document Prep: Billed at $25 per hour.
+- Typing and Document Prep: Billed at €25 per hour.
 - Translation: Basic document translation is available; rates vary based on language and document length.
 
 ## When AI Should Escalate
@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest requests legally binding translations or notarizations.
 - A guest is dissatisfied with the accuracy or formatting of completed work.
 - The guest requires immediate, emergency typing services outside of regular hours.
+

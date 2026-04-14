@@ -29,3 +29,4 @@ The Superior Suite is the largest and most luxurious room type at **Apollo Hotel
 - **Children:** allowed (including children under 6 years old).
 - **Extra Beds / Cots:** Baby cot is allowed.
 - Families welcome.
+

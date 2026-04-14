@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest reports a lost or missing child on the hotel property.
 - An injury occurs in the pool or fitness area involving a minor.
 - A guest reports that a provided crib or rollaway bed is broken or unsafe.
+

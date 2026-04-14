@@ -19,7 +19,7 @@ We offer flexible, modern meeting spaces ideal for board meetings, interviews, a
 ## Equipment and Fees
 
 - Included Amenities: Whiteboards, markers, and standard Wi-Fi.
-- AV Rentals: 4K projectors and conference phones are available for a $50 daily flat fee.
+- AV Rentals: 4K projectors and conference phones are available for a €50 daily flat fee.
 
 ## When AI Should Escalate
 
@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest reports that AV equipment is malfunctioning during an active meeting.
 - There is a double-booking or scheduling conflict.
 - A guest has an unresolved complaint regarding catered food for their meeting.
+

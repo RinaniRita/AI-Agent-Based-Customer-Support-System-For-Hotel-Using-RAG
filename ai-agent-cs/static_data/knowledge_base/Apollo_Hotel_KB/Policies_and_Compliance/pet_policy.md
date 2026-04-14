@@ -14,7 +14,7 @@ We warmly welcome domestic pets under specific guidelines designed to ensure the
 ## Allowed Pets and Fees
 
 - Types: We welcome dogs and cats up to a maximum weight of 40 lbs.
-- Fee: A non-refundable pet cleaning fee of $100 per stay applies. Maximum of two pets per room.
+- Fee: A non-refundable pet cleaning fee of €100 per stay applies. Maximum of two pets per room.
 
 ## Restrictions
 
@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest brings an unauthorized, exotic, or oversized pet onto the property.
 - A pet bites, scratches, or injures another guest or staff member.
 - There are continuous noise complaints (e.g., a barking dog) and the owner is unreachable.
+

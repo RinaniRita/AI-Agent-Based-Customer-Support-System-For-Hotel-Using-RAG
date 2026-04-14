@@ -29,3 +29,4 @@ The AI assistant must escalate if:
 - A guest reports a machine malfunction or safety hazard.
 - A guest requests a personal trainer or private fitness session.
 - There is a medical emergency or injury in the fitness center.
+

@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest requests a penalty waiver due to medical or travel emergencies.
 - The guest disputes a cancellation fee already charged.
 - The guest expresses anger over the non-refundable policy.
+

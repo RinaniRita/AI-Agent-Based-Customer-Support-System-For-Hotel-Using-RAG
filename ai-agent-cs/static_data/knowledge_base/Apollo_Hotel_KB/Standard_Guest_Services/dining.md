@@ -20,7 +20,7 @@ We offer exceptional on-site culinary experiences and convenient 24/7 in-room di
 ## In-Room Dining
 
 - Hours: Available 24/7.
-- Fees: A 20% service charge and a $5 delivery fee are applied to all orders.
+- Fees: A 20% service charge and a €5 delivery fee are applied to all orders.
 
 ## When AI Should Escalate
 
@@ -29,3 +29,4 @@ The AI assistant must escalate if:
 - A guest reports severe food allergies or dietary restrictions requiring chef consultation.
 - The guest complains about food quality or delivery delays.
 - A guest wants to host a large private dining event in their suite.
+

@@ -23,3 +23,4 @@ The Junior Suite offers extra space and is beautifully furnished in light natura
 ## Policies & Restrictions
 - **Children:** Allowed (including children under 6 years old).
 - **Extra Beds / Cots:** A baby cot can be added to the room.
+

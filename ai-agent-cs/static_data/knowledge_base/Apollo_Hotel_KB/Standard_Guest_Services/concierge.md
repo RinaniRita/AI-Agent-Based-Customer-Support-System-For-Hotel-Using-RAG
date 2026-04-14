@@ -29,3 +29,4 @@ The AI assistant must escalate if:
 - A guest requests a high-value or complex booking (e.g., private jet charter, VIP tickets).
 - The guest needs immediate emergency assistance.
 - The request requires external vendor coordination that the AI cannot perform automatically.
+

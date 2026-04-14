@@ -23,3 +23,4 @@ The AI assistant must escalate if:
 - A guest has lost their passport and requires immediate embassy intervention.
 - The guest reports a legal or political emergency involving their home country.
 - A guest requires complex translation assistance while speaking with their embassy.
+

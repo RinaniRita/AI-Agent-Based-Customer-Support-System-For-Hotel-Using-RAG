@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest disputes a spa cancellation fee.
 - The guest reports a severe medical condition or allergy prior to a treatment.
 - A guest wants to book a couple's treatment or specific therapist when the schedule is fully booked.
+

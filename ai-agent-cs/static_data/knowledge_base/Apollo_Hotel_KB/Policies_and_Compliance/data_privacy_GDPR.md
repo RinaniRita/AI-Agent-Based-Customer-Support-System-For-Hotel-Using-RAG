@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest suspects a data breach, credit card fraud, or identity theft linked to the hotel.
 - Law enforcement or a third party requests access to a specific guest's records.
 - A guest demands immediate, permanent deletion of all their records while currently on-property.
+

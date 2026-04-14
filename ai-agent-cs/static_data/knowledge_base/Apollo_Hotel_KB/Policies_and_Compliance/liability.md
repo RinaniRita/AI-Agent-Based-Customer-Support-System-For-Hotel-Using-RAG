@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest claims high-value items (jewelry, electronics) were stolen from their room.
 - Major property damage occurs (e.g., a broken window, flooded bathroom, or fire).
 - A guest explicitly refuses to pay for documented damages charged to their folio.
+

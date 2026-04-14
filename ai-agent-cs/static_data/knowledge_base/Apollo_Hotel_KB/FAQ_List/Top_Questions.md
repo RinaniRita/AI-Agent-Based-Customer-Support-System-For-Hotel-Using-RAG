@@ -34,3 +34,4 @@ Your safe is located in the closet.
 
 ## 9. Can I get a wake-up call?
 Absolutely! Inform our Front Desk or the automated system via the Telegram bot with the exact time you would like to be woken up, and we will call your room.
+

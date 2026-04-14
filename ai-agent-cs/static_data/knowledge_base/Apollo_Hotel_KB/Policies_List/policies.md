@@ -37,3 +37,4 @@ The AI assistant must trigger a human escalation if:
 * A guest attempts to argue the strict No Pets policy or requests a refund after being denied entry.
 * A guest disputes the €250 smoking penalty.
 * A guest makes a serious noise complaint during quiet hours.
+

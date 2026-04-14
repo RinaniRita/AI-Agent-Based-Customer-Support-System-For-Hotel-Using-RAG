@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest demands to speak directly with the General Manager.
 - The frontline staff or Duty Manager failed to resolve the guest's issue previously.
 - A guest threatens to leave negative public reviews or contact the media.
+

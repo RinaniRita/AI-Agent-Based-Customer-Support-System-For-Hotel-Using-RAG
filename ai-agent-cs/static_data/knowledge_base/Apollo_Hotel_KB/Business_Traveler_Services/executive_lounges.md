@@ -14,7 +14,7 @@ The Executive Lounge offers an exclusive, refined environment for working, netwo
 ## Lounge Access
 
 - Eligibility: Exclusive to guests booked in Club Level rooms and Platinum-tier loyalty members.
-- Guest Policy: One complimentary guest is permitted per eligible room. Additional guests incur a $30 daily fee.
+- Guest Policy: One complimentary guest is permitted per eligible room. Additional guests incur a €30 daily fee.
 
 ## Daily Offerings
 
@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest is denied entry but insists they have the correct tier or booking.
 - A guest complains about overcrowding or a lack of available food.
 - A guest repeatedly attempts to bring unauthorized external visitors into the lounge.
+

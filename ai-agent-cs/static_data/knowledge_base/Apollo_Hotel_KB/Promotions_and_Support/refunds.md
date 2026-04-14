@@ -26,3 +26,4 @@ The AI assistant must escalate if:
 - A guest demands an immediate cash refund for a transaction originally paid by credit card.
 - The guest claims an authorized refund has not appeared in their bank account after 7 business days.
 - A guest threatens to initiate a credit card chargeback.
+

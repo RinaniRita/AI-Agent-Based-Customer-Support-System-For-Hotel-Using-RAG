@@ -20,8 +20,8 @@ We aim to provide a seamless arrival and departure experience. Standard timings 
 ## Check-Out
 
 - Standard Time: 12:00 PM.
-- Late Check-Out (up to 2:00 PM): Incurs a $50 fee.
-- Late Check-Out (after 2:00 PM): Incurs a full night's charge.
+- Late Check-Out (up to 3:00 PM): Incurs a €20 per hour fee (subject to availability).
+- Late Check-Out (after 3:00 PM): Incurs a full night's charge.
 
 ## When AI Should Escalate
 
@@ -30,3 +30,4 @@ The AI assistant must escalate if:
 - A guest demands a guaranteed early check-in or late check-out without fees.
 - The guest is experiencing issues with mobile key or self-check-in kiosks.
 - A guest disputes late check-out charges.
+

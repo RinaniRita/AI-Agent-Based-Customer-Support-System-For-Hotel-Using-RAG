@@ -45,7 +45,7 @@ Variation 24: What time can we arrive?
 
 ## Location & Transportation
 **Intent:** Finding the hotel or getting a taxi/shuttle.
-**Response Grounding:** 123 Ly Thai To Street, Hanoi. Shuttle is 850 CZK (or equivalent).
+**Response Grounding:** 123 Ly Thai To Street, Hanoi. Private transfer is €45 per car.
 
 Variation 25: Where is the hotel
 Variation 26: how do I get there
@@ -78,3 +78,4 @@ Variation 47: safe is locked how to open
 Variation 48: noisy outside
 Variation 49: room is dirty
 Variation 50: Can I get a discount because the elevator was broken?
+

@@ -14,7 +14,7 @@ We offer convenient on-site currency exchange and accept various international p
 ## Currency Exchange
 
 - Service: Currency exchange for major global currencies (USD, EUR, GBP, JPY) is available at the front desk.
-- Limits: Exchanges are limited to $500 equivalent per room, per day, subject to real-time exchange rates plus a 3% service fee.
+- Limits: Exchanges are limited to €250 equivalent per room, per day, subject to real-time exchange rates plus a 3% service fee.
 
 ## Accepted International Methods
 
@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest's international credit card is blocked for fraud prevention and they have no alternative payment method.
 - The guest strongly disputes the dynamic currency conversion exchange rate applied to their folio.
 - A guest needs to exchange a currency not currently supported by the hotel.
+

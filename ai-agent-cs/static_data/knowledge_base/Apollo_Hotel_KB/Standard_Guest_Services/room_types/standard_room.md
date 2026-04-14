@@ -15,3 +15,4 @@ The Standard Room at **Apollo Hotel** provides a comfortable and affordable stay
 - Individually controlled air conditioning
 - Double glazed windows for noise reduction
 - Heated floor in the bathroom
+

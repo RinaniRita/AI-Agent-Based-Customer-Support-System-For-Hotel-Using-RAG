@@ -17,3 +17,4 @@ The Standard Room with Extra Bed at **Apollo Hotel** is suitable for small famil
 - Individually controlled air conditioning
 - Double glazed windows for noise reduction
 - Heated floor in the bathroom
+

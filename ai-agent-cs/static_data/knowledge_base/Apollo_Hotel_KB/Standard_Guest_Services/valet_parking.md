@@ -13,7 +13,7 @@ We offer secure, 24-hour valet parking to provide a hassle-free arrival and depa
 
 ## Valet Parking
 
-- Rate: $45 per night (includes unlimited in-and-out privileges).
+- Rate: €45 per night (includes unlimited in-and-out privileges).
 - Process: Guests should text the valet desk 15 minutes prior to vehicle retrieval.
 
 ## Self-Parking
@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest claims their vehicle was damaged while in the care of the valet team.
 - There is an excessive delay (over 30 minutes) in retrieving a guest's vehicle.
 - A guest refuses to pay the valet fee because they were unaware self-parking was unavailable.
+

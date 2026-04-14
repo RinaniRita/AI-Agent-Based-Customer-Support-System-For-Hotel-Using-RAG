@@ -14,7 +14,7 @@ Guest health and safety is paramount. We provide quick access to on-call medical
 ## On-Call Doctor
 
 - Availability: A certified general practitioner is on-call 24/7 for in-room consultations.
-- Fees: Consultation fees start at $150 and can be billed directly to the guest's room.
+- Fees: Consultation fees start at €150 and can be billed directly to the guest's room.
 
 ## Nearby Facilities
 
@@ -28,3 +28,4 @@ The AI assistant must escalate if:
 - A guest experiences a life-threatening medical emergency requiring an immediate ambulance.
 - The guest requests prescription medication that the hotel cannot legally provide.
 - A guest reports a severe injury or suspected food poisoning occurring on hotel property.
+

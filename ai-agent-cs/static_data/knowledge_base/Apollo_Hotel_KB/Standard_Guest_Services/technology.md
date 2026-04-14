@@ -27,3 +27,4 @@ The AI assistant must escalate if:
 - A guest experiences a complete loss of internet connectivity.
 - The guest requires advanced technical support to connect a corporate VPN.
 - In-room technology (Smart TV, electronic blinds, or thermostat) malfunctions.
+
