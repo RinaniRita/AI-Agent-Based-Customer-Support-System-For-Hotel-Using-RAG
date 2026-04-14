@@ -15,6 +15,7 @@ else:
 # LLM Providers (Cloud)
 # --------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_API_KEY_FALLBACK = os.getenv("GEMINI_API_KEY_FALLBACK", "AIzaSyDakHyHfj6TEdTun30VuxxrUFIeIDVMZuU")
 # Model names: "gemini-1.5-flash" or "gemini-1.5-pro"
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 

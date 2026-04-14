@@ -13,8 +13,8 @@ We provide seamless connectivity and modern in-room entertainment options to enh
 
 ## Internet Access
 
-- Standard Wi-Fi: Complimentary for all registered guests.
-- Premium Wi-Fi: $15 per day (Complimentary for Gold and Platinum loyalty members). Ideal for streaming and large downloads.
+- Standard Wi-Fi: Complimentary for all registered guests. No password required (Connect to 'Apollo_Guest').
+- Premium Wi-Fi: Complimentary for all checked-in customers. The Wi-Fi network name and password are written directly on your hotel key card.
 
 ## In-Room Tech
 

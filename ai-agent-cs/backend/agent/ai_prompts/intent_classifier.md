@@ -23,7 +23,12 @@ Rules:
 - ORDER_FOOD: triggers on "menu", "food menu", "room service", "i want to order food", "show me the menu".
 - ORDER_STATUS: triggers when the guest asks "where is my order", "what is the status of order X", or asks about delivery.
 - If unsure, reply GENERAL.
-- SERVICE_REQUEST: prioritizes action-oriented room requests. If a guest asks "Do you have towels?" it is FOOD_AVAILABILITY (if they mean items) but "Send towels" is SERVICE_REQUEST. Typically, active requests for room help are SERVICE_REQUEST.
+- **Handling Multiple Intents:** If a guest asks about two things (e.g., "What time is breakfast and where is the gym?"), classify as **GENERAL**. This triggers the RAG router which can handle multiple documents.
+- **SERVICE_REQUEST vs. GENERAL:**
+  - "I need a towel" -> **SERVICE_REQUEST**
+  - "Do you have iron in the room?" -> **GENERAL** (Fact finding)
+  - "Can you bring an iron up?" -> **SERVICE_REQUEST** (Action oriented)
+- **SERVICE_REQUEST:** triggers on "need towels", "clean my room", "housekeeping", "wake up call", "extra pillow", "fix the light", "send someone up".
 
 Guest message: "{message}"
 

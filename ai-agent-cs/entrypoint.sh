@@ -11,11 +11,10 @@ if [ ! -f "data/hotel_data.db" ]; then
     python -m backend.database.setup_db
 fi
 
-# 2. Ingest Knowledge Base if vector store is missing
-if [ ! -d "data/vector_store" ]; then
-    echo "Ingesting Knowledge Base..."
-    python -m backend.data_scripts.ingest_kb
-fi
+# 2. Ingest Knowledge Base
+# We run this every time to ensure your latest refinements (Policies, Local Guides, etc.) are indexed
+echo "Ingesting Knowledge Base (Standardizing Latest Refinements)..."
+python -m backend.data_scripts.ingest_kb
 
 echo "Starting Multi-Process Hotel System..."
 

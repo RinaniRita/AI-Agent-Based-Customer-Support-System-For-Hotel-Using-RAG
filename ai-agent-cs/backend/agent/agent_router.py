@@ -111,6 +111,7 @@ INTENT_PROMPT = _load_prompt("intent_classifier.md")
 FALLBACK_PROMPT = _load_prompt("mini_agent_fallback.md")
 CUSTOMER_SUPPORT_PROMPT = (
     _load_prompt("customer_support.md") + "\n\n" +
+    _load_prompt("global_info.md") + "\n\n" +
     _load_prompt("rag_grounding_and_anti_hallucination.md") + "\n\n" +
     _load_prompt("formatting_guidelines_prompt.md") + "\n\n" +
     _load_prompt("safety_and_topic_boundaries.md") + "\n\n" +

@@ -39,7 +39,7 @@ def seed_all():
     conn = get_connection()
 
     # Load Rooms
-    rooms_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "rooms", "rooms.json")
+    rooms_path = os.path.join(os.path.dirname(__file__), "..", "..", "static_data", "rooms", "rooms.json")
     with open(rooms_path, "r", encoding="utf-8") as f:
         rooms_data = json.load(f)
 
@@ -60,7 +60,7 @@ def seed_all():
             """, (room_number, r["room_type"]))
 
     # 3. Seed Food Inventory
-    food_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "food", "food_inventory.json")
+    food_path = os.path.join(os.path.dirname(__file__), "..", "..", "static_data", "food", "food_inventory.json")
     with open(food_path, "r", encoding="utf-8") as f:
         food_data = json.load(f)
 

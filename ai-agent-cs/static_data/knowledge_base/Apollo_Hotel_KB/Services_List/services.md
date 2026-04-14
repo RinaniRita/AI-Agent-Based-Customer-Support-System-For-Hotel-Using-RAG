@@ -19,8 +19,8 @@ This document lists the official services and amenities provided by Apollo Hotel
 ## 2. Parking Garage
 * **Availability**: The hotel offers a limited number of secured parking spaces in its underground garage.
 * **Mandatory Reservation**: A confirmed reservation for parking is strictly required, as space is not guaranteed otherwise.
-* **Cost**: Parking fees generally range from €27 to **€35 per night**.
-* **VEHICLE RESTRICTIONS (CRITICAL)**: Due to safety and garage limitations, **LPG, CNG, electric, and hybrid vehicles are strictly NOT PERMITTED** in the underground garage. There are also size and weight limitations.
+* **Cost**: Parking fees are **€35 per night**.
+* **EV & Hybrid Vehicles**: We warmly welcome Electric and Hybrid vehicles! We also have **EV Charging Stations** available for guest use in the garage.
 * **Bicycles/Motorcycles**: Parking for bikes and motorcycles is available upon request.
 
 ## 3. General Amenities

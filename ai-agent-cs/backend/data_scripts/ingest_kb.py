@@ -20,7 +20,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ingest_kb")
 
-KB_ROOT = Path("data/knowledge_base/Apollo_Hotel_KB")
+KB_ROOT = Path("static_data/knowledge_base/Apollo_Hotel_KB")
 # TARGET_SUBFOLDER = "Promotions_and_Support"  # commented out to process entire KB
 
 if __name__ == "__main__":
