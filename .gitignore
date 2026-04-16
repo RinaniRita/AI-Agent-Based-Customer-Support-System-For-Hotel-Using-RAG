@@ -76,6 +76,8 @@ docker-compose.override.yml
 htmlcov/
 .ipynb_checkpoints/
 *.ipynb
+# Local test & debug scripts
+test_*.py
 
 # =========================
 # Frontend

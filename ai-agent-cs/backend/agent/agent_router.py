@@ -137,8 +137,8 @@ def classify_intent(user_input: str) -> str:
             temperature=0.0
         )
         raw = raw_response.strip().upper()
-        # Sanitise: take only the first word in case LLM adds extras
-        label = raw.split()[0] if raw else "GENERAL"
+        # Sanitise: split by space OR pipe just in case model is stubborn
+        label = re.split(r'[ |]', raw)[0] if raw else "GENERAL"
         allowed = ("GET_ROOMS", "RECOMMEND", "BOOK", "ORDER_FOOD", "MY_BOOKING",
                    "FOOD_AVAILABILITY", "ORDER_STATUS", "ROOM_AVAILABILITY", "ROOM_STATUS", "SERVICE_REQUEST", "GENERAL")
         if label not in allowed:
@@ -303,17 +303,15 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
 
     # ── BOOK ──
     elif intent == "BOOK":
-        # We do NOT auto-book here.  Instead we signal main.py to show the
-        # existing room-selection keyboard so the guest picks a room type
-        # and enters the familiar booking flow.
+        # Guidance to return to main menu as requested by user
         return {
             "response": (
                 "🛎️ *I would be delighted to assist you with your booking!*\n\n"
-                "To ensure everything is perfect for your stay, please select your preferred room type from the options below to begin the reservation process:"
+                "To begin the reservation process and explore our available rooms, please press the button below to **Return to Main Menu**, then select **🏨 Hotel Rooms & Booking**."
             ),
             "intent": intent,
             "tool_used": "book_room",
-            "tool_result": None,  # main.py will show the room keyboard
+            "tool_result": None,
         }
 
     # ── ORDER FOOD ──
@@ -357,8 +355,7 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
         return {
             "response": (
                 "🍽️ *I would be happy to help you with your dining request!*\n\n"
-                "I am opening our complete In-Room Dining menu for you now. "
-                "From our award-winning appetizers to our chef's signature entrees, we have something to delight every palate."
+                "Please press the button below to **Return to Main Menu**, then select **🍽️ Order Room Service** to browse our complete In-Room Dining menu and place your order."
             ),
             "intent": intent, "tool_used": "order_food", "tool_result": None,
         }

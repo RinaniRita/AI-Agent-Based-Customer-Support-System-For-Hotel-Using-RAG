@@ -61,21 +61,59 @@ init_db()
 rag_service = RAGService()
 support_agent = CustomerSupportAgent("CustomerSupport", llm_client, rag_service)
 
-# In-memory dictionary for state management (For Production: use Redis or Database)
-user_states = {}
+from .services.memory_service import memory_service
+from .services.notification_service import notify_employee_food, notify_employee_booking, notify_employee_request
+from .services.admin_bot_manager import start_admin_bots
 
-# Booking session tracking: { chat_id: { "booking_id": int, "room_type": str, "step": str } }
-booking_sessions = {}
+# Redis-backed persistent storage wrapper
+class PersistentDict:
+    def __init__(self, prefix: str):
+        self.prefix = prefix
+    
+    def __getitem__(self, key):
+        val = memory_service.get(f"{self.prefix}:{key}")
+        if val is None:
+            raise KeyError(key)
+        return val
+    
+    def __setitem__(self, key, value):
+        memory_service.set(f"{self.prefix}:{key}", value)
+    
+    def __delitem__(self, key):
+        memory_service.delete(f"{self.prefix}:{key}")
+    
+    def __contains__(self, key):
+        return memory_service.get(f"{self.prefix}:{key}") is not None
+    
+    def get(self, key, default=None):
+        val = memory_service.get(f"{self.prefix}:{key}")
+        return val if val is not None else default
+        
+    def setdefault(self, key, default):
+        val = memory_service.get(f"{self.prefix}:{key}")
+        if val is None:
+            memory_service.set(f"{self.prefix}:{key}", default)
+            return default
+        return val
+        
+    def pop(self, key, default=None):
+        val = memory_service.get(f"{self.prefix}:{key}")
+        if val is not None:
+            memory_service.delete(f"{self.prefix}:{key}")
+            return val
+        return default
 
-# Food order cart: { chat_id: { "items": [{"name": str, "price": float}], "pairings": [...] } }
-food_carts = {}
-
-# General user data storage
-user_data = {}
-
-# Pending AI service requests (waiting for room selection)
-# Format: { chat_id: { "user_input": str, "intent": str } }
-pending_ai_service_requests = {}
+# Initialize persistent mappings
+user_states = PersistentDict("user_state")
+booking_sessions = PersistentDict("booking_session")
+food_carts = PersistentDict("food_carts.json")
+user_data = PersistentDict("user_data")
+# For multi-room AI service requests context
+pending_ai_service_requests = PersistentDict("pending_ai_req.json")
+# guest_id -> room_info
+checked_in_guests = PersistentDict("checked_in_guests.json")
+# room_number -> booking_data
+active_room_bookings = PersistentDict("active_room_bookings.json")
 
 # ── In-Room Dining Menu Data ────────────────────────────────
 DINING_MENU = {
@@ -208,7 +246,9 @@ def get_room_selection_keyboard(bookings, action_prefix):
 
 async def _show_food_menu(query, chat_id, booking):
     """Internal helper to display the food menu for a specific booking."""
-    user_data.setdefault(chat_id, {})["active_booking"] = booking
+    udata = user_data.get(chat_id, {})
+    udata["active_booking"] = booking
+    user_data[chat_id] = udata  # PERSIST
     keyboard = [
         [InlineKeyboardButton("🥗 Starters", callback_data="food_cat_starters")],
         [InlineKeyboardButton("🥩 Main Courses", callback_data="food_cat_mains")],
@@ -286,7 +326,9 @@ async def _show_food_status_board(query, chat_id):
 
 async def _show_front_desk_menu(query, chat_id, booking):
     """Internal helper to display the front desk services for a specific booking."""
-    user_data.setdefault(chat_id, {})["active_booking"] = booking
+    udata = user_data.get(chat_id, {})
+    udata["active_booking"] = booking
+    user_data[chat_id] = udata  # PERSIST
     keyboard = [
         [InlineKeyboardButton("🧼 Request Extra Towels", callback_data="fd_towels")],
         [InlineKeyboardButton("✨ Housekeeping Request", callback_data="fd_housekeeping")],
@@ -524,10 +566,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         item = _find_menu_item(item_id)
         if not item:
             return
-        if chat_id not in food_carts:
-            food_carts[chat_id] = {"items": []}
-        food_carts[chat_id]["items"].append({"id": item["id"], "name": item["name"], "price": item["price"]})
-        cart_count = len(food_carts[chat_id]["items"])
+            
+        cart = food_carts.get(chat_id, {"items": []})
+        
+        # Group items by ID and increment quantity
+        item_found = False
+        for cart_item in cart["items"]:
+            if cart_item["id"] == item["id"]:
+                cart_item["quantity"] = cart_item.get("quantity", 1) + 1
+                item_found = True
+                break
+        
+        if not item_found:
+            cart["items"].append({
+                "id": item["id"], 
+                "name": item["name"], 
+                "price": item["price"],
+                "quantity": 1
+            })
+            
+        food_carts[chat_id] = cart  # PERSIST CHANGE
+        
+        # Calculate total items in cart (sum of quantities)
+        cart_total_qty = sum(i.get("quantity", 1) for i in cart["items"])
 
         # Check for wine pairing
         pairing = WINE_PAIRINGS.get(item_id)
@@ -543,7 +604,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
             await query.edit_message_text(
                 text=(
-                    f"✅ *{item['name']}* added to your cart! ({cart_count} items)\n\n"
+                    f"✅ *{item['name']}* added to your cart! ({cart_total_qty} items)\n\n"
                     f"🍷 *Sommelier Suggestion:*\n"
                     f"_{pairing['note']}_\n\n"
                     f"Would you like to add a perfectly paired glass?"
@@ -557,7 +618,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("🔙 Continue Browsing", callback_data="order_food")]
             ]
             await query.edit_message_text(
-                text=f"✅ *{item['name']}* added to your cart! ({cart_count} items)",
+                text=f"✅ *{item['name']}* added to your cart! ({cart_total_qty} items)",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )
@@ -633,9 +694,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         total = sum(item["price"] for item in cart["items"])
         items_json = json.dumps(cart["items"])
         order_id = await asyncio.to_thread(create_food_order, chat_id, room_number, items_json, total, booking_id)
+        
+        # Notify Kitchen Bot right away
+        new_order = {
+            "id": order_id,
+            "chat_id": chat_id,
+            "room_number": room_number,
+            "items": cart["items"],
+            "total_price": total,
+            "status": "RECEIVED"
+        }
+        asyncio.create_task(notify_employee_food(new_order))
+
         food_carts[chat_id] = {"items": []}
         # Clear selection after order
-        if "selected_room" in user_data[chat_id]: del user_data[chat_id]["selected_room"]
+        udata = user_data.get(chat_id, {})
+        if "selected_room" in udata:
+            del udata["selected_room"]
+            user_data[chat_id] = udata
         user_states[chat_id] = "MAIN_MENU"
 
         await query.edit_message_text(
@@ -819,24 +895,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- New: Edit Details Callbacks ---
     elif data == "edit_name":
         if chat_id in booking_sessions:
-            booking_sessions[chat_id]["step"] = "WAITING_NAME"
-            booking_sessions[chat_id]["step_before_edit"] = True
+            session = booking_sessions[chat_id]
+            session["step"] = "WAITING_NAME"
+            session["step_before_edit"] = True
+            booking_sessions[chat_id] = session  # PERSIST
             await query.edit_message_text(
                 text="✏️ *Changing Name*\n\nPlease type your updated *Full Name*:",
                 parse_mode="Markdown"
             )
     elif data == "edit_email":
         if chat_id in booking_sessions:
-            booking_sessions[chat_id]["step"] = "WAITING_EMAIL"
-            booking_sessions[chat_id]["step_before_edit"] = True
+            session = booking_sessions[chat_id]
+            session["step"] = "WAITING_EMAIL"
+            session["step_before_edit"] = True
+            booking_sessions[chat_id] = session  # PERSIST
             await query.edit_message_text(
                 text="✏️ *Changing Email*\n\nPlease type your updated *Email Address*:",
                 parse_mode="Markdown"
             )
     elif data == "edit_phone":
         if chat_id in booking_sessions:
-            booking_sessions[chat_id]["step"] = "WAITING_PHONE"
-            booking_sessions[chat_id]["step_before_edit"] = True
+            session = booking_sessions[chat_id]
+            session["step"] = "WAITING_PHONE"
+            session["step_before_edit"] = True
+            booking_sessions[chat_id] = session  # PERSIST
             await query.edit_message_text(
                 text="✏️ *Changing Phone*\n\nPlease type your updated *Phone Number*:",
                 parse_mode="Markdown"
@@ -855,6 +937,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Generate Link
             checkout_url = f"{FRONTEND_URL}/review.html?id={session['booking_id']}&api={API_BASE_URL}"
+            
+            # Notify Reception Bot!
+            try:
+                booking_data = get_booking(session['booking_id'])
+                if booking_data:
+                    asyncio.create_task(notify_employee_booking(booking_data))
+            except Exception as e:
+                logger.error(f"Failed to notify employee of booking: {e}")
             
             await query.edit_message_text(
                 text=(
@@ -972,7 +1062,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Handle Room Selection for Multi-room users
         if data.startswith("fd_room_"):
             room_num = data.replace("fd_room_", "")
-            user_data.setdefault(chat_id, {})["selected_room"] = room_num
+            udata = user_data.get(chat_id, {})
+            udata["selected_room"] = room_num
+            user_data[chat_id] = udata  # PERSIST
             # Find the specific booking to pass to the helper
             bookings = get_all_active_bookings_by_user(chat_id)
             booking = next((b for b in bookings if str(b["room_number"]) == str(room_num)), None)
@@ -1023,12 +1115,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
 
         room_number = booking["room_number"]
-        if chat_id not in user_data:
-            user_data[chat_id] = {}
         
         # 2. Redirect to Room Verification if not verified yet
         if data in ["fd_towels", "fd_housekeeping", "fd_other"]:
-            user_data[chat_id]["pending_service"] = data
+            udata = user_data.get(chat_id, {})
+            udata["pending_service"] = data
+            user_data[chat_id] = udata  # PERSIST CHANGE
             keyboard = [
                 [InlineKeyboardButton("✅ Yes, that's correct", callback_data="fd_verify_yes")],
                 [InlineKeyboardButton("❌ No, incorrect", callback_data="fd_verify_no")]
@@ -1081,7 +1173,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
             svc = service_map.get(pending)
             if svc:
-                await asyncio.to_thread(create_service_request, chat_id, svc[0], f"Requested via Telegram")
+                req_id = await asyncio.to_thread(create_service_request, chat_id, svc[0], f"Requested via Telegram", room_number=room_number)
+                
+                # Notify Service Bot
+                req_data = {
+                    "id": req_id,
+                    "telegram_id": chat_id,
+                    "room_number": room_number,
+                    "request_type": svc[0],
+                    "details": "Requested via Telegram"
+                }
+                asyncio.create_task(notify_employee_request(req_data))
+
                 keyboard = [
                     [InlineKeyboardButton("🛎️ More Services", callback_data="front_desk")],
                     [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
@@ -1096,7 +1199,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data == "fd_confirm_other":
         details = user_data.get(chat_id, {}).get("service_other_text", "No details")
-        await asyncio.to_thread(create_service_request, chat_id, "OTHER", details)
+        room_number = user_data.get(chat_id, {}).get("active_booking", {}).get("room_number")
+        
+        # Fallback if room_number is None (e.g. came from generic AI request)
+        if not room_number:
+            b = get_booking_by_user(chat_id)
+            if b:
+                room_number = b.get("room_number")
+
+        
+        req_id = await asyncio.to_thread(create_service_request, chat_id, "OTHER", details, room_number=room_number)
+        
+        # Notify Service Bot
+        req_data = {
+            "id": req_id,
+            "telegram_id": chat_id,
+            "room_number": room_number,
+            "request_type": "OTHER",
+            "details": details
+        }
+        asyncio.create_task(notify_employee_request(req_data))
+
         user_states[chat_id] = "MAIN_MENU"
         keyboard = [
             [InlineKeyboardButton("🛎️ More Services", callback_data="front_desk")],
@@ -1122,7 +1245,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("food_room_"):
         room_num = data.replace("food_room_", "")
-        user_data.setdefault(chat_id, {})["selected_room"] = room_num
+        udata = user_data.get(chat_id, {})
+        udata["selected_room"] = room_num
+        user_data[chat_id] = udata  # PERSIST
+
         # Find the specific booking to pass to the helper
         bookings = get_all_active_bookings_by_user(chat_id)
         booking = next((b for b in bookings if str(b["room_number"]) == str(room_num)), None)
@@ -1235,9 +1361,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ─── FRONT DESK: CUSTOM REQUEST FLOW ───
     if state == "AWAITING_SERVICE_OTHER":
-        if chat_id not in user_data:
-            user_data[chat_id] = {}
-        user_data[chat_id]["service_other_text"] = user_message
+        data = user_data.get(chat_id, {})
+        data["service_other_text"] = user_message
+        user_data[chat_id] = data  # PERSIST CHANGE
         
         keyboard = [
             [InlineKeyboardButton("✅ Confirm & Send", callback_data="fd_confirm_other")],
@@ -1320,6 +1446,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             assigned_room = await asyncio.to_thread(update_booking_dates, session["booking_id"], ci_str, co_str, nights)
             session["step"] = "WAITING_NAME"
             session["room_number"] = assigned_room
+            booking_sessions[chat_id] = session  # PERSIST CHANGE
 
             room_info = get_room_info(session["room_type"])
             total = room_info["price_per_night"] * nights
@@ -1367,10 +1494,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if session.get("step_before_edit"):
                 session["step"] = "CONFIRM_SUMMARY"
                 del session["step_before_edit"]
+                booking_sessions[chat_id] = session  # PERSIST CHANGE
                 await send_booking_summary(context, chat_id, session)
                 return
 
             session["step"] = "WAITING_EMAIL"
+            booking_sessions[chat_id] = session  # PERSIST CHANGE
+            
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=f"👤 Thank you, *{session['guest_name']}*!\n\nPlease type your *Email Address*.",
@@ -1402,10 +1532,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if session.get("step_before_edit"):
                 session["step"] = "CONFIRM_SUMMARY"
                 del session["step_before_edit"]
+                booking_sessions[chat_id] = session  # PERSIST CHANGE
                 await send_booking_summary(context, chat_id, session)
                 return
 
             session["step"] = "WAITING_PHONE"
+            booking_sessions[chat_id] = session  # PERSIST CHANGE
+
             await context.bot.send_message(
                 chat_id=chat_id,
                 text="📧 Got it! Now please type your *Phone Number*.",
@@ -1419,6 +1552,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             session["step"] = "CONFIRM_SUMMARY"
             if session.get("step_before_edit"):
                 del session["step_before_edit"]
+            
+            booking_sessions[chat_id] = session  # PERSIST CHANGE
             await send_booking_summary(context, chat_id, session)
             return
             
@@ -1480,6 +1615,49 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.send_chat_action(chat_id=chat_id, action="typing")
 
+        # ── Affirmation Shortcut ──────────────────────────────────────────
+        # If the user answers "yes" / "sure" / "ok" after the bot asked a
+        # clarifying question, we check what intent was last pending and
+        # immediately open the correct interactive menu without calling LLM.
+        affirmations = {"yes", "yeah", "yep", "sure", "ok", "okay", "please", "go ahead", "of course", "definitely", "yup"}
+        if user_message.strip().lower() in affirmations:
+            session_ctx = user_data.get(chat_id, {})
+            last_intent = session_ctx.get("last_intent")
+
+            if last_intent == "ORDER_FOOD":
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="🍽️ *I would be happy to help you with your dining request!*\n\nPlease press the button below to **Return to Main Menu**, then select **🍽️ Order Room Service** to view our complete In-Room Dining menu.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Return to Main Menu", callback_data="main_menu")]]),
+                    parse_mode="Markdown"
+                )
+                return
+
+            elif last_intent == "SERVICE_REQUEST":
+                svc_keyboard = [
+                    [InlineKeyboardButton("🧼 Request Extra Towels", callback_data="fd_towels")],
+                    [InlineKeyboardButton("✨ Housekeeping Request", callback_data="fd_housekeeping")],
+                    [InlineKeyboardButton("📝 Other Request", callback_data="fd_other")],
+                    [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+                ]
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="🛎️ *Front Desk Services*\n\nWhat can we help you with today?",
+                    reply_markup=InlineKeyboardMarkup(svc_keyboard),
+                    parse_mode="Markdown"
+                )
+                return
+
+            elif last_intent == "BOOK":
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="🛎️ *I would be delighted to assist you with your booking!*\n\nPlease press the button below to **Return to Main Menu**, then select **🏨 Hotel Rooms & Booking** to begin your reservation.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Return to Main Menu", callback_data="main_menu")]]),
+                    parse_mode="Markdown"
+                )
+                return
+        # ─────────────────────────────────────────────────────────────────
+
         result = await asyncio.to_thread(
             process_agent_query,
             user_message,
@@ -1488,36 +1666,53 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         logger.info(f"[Agent] Intent={result.get('intent')}  Tool={result.get('tool_used')}")
 
-        # If the agent decided the user wants to BOOK, show the room-selection
-        # keyboard to funnel them into the existing booking flow.
-        if result.get("intent") == "BOOK":
+        intent = result.get("intent", "GENERAL")
+
+        # Save the last intent so affirmative answers like "yes" route correctly
+        ctx = user_data.get(chat_id, {})
+        ctx["last_intent"] = intent
+        user_data[chat_id] = ctx  # PERSIST
+
+        # If the agent decided the user wants to BOOK, guide to Main Menu
+        if intent == "BOOK":
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=result['response'],
-                reply_markup=get_rooms_keyboard(),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Return to Main Menu", callback_data="main_menu")]]),
                 parse_mode="Markdown"
             )
-        elif result.get("intent") == "ORDER_FOOD":
-            if chat_id not in food_carts:
-                food_carts[chat_id] = {"items": []}
-            keyboard = [
-                [InlineKeyboardButton("🥗 Starters", callback_data="food_cat_starters")],
-                [InlineKeyboardButton("🥩 Main Courses", callback_data="food_cat_mains")],
-                [InlineKeyboardButton("🍰 Desserts", callback_data="food_cat_desserts")],
-                [InlineKeyboardButton("🍷 Beverages", callback_data="food_cat_drinks")],
-                [InlineKeyboardButton("🛒 View My Cart", callback_data="food_cart")]
-            ]
+        elif intent == "ORDER_FOOD":
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=result['response'],
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Return to Main Menu", callback_data="main_menu")]]),
                 parse_mode="Markdown"
             )
+        elif intent == "SERVICE_REQUEST":
+            if result.get('tool_result') == "no_booking":
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=result['response'],
+                    parse_mode="Markdown"
+                )
+            else:
+                svc_keyboard = [
+                    [InlineKeyboardButton("🧼 Request Extra Towels", callback_data="fd_towels")],
+                    [InlineKeyboardButton("✨ Housekeeping Request", callback_data="fd_housekeeping")],
+                    [InlineKeyboardButton("📝 Other Request", callback_data="fd_other")],
+                    [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+                ]
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=result['response'],
+                    reply_markup=InlineKeyboardMarkup(svc_keyboard),
+                    parse_mode="Markdown"
+                )
         elif result.get("room_options"):
             # Multi-room scenario detected by agent
             pending_ai_service_requests[chat_id] = {
                 "user_input": user_message,
-                "intent": result.get("intent")
+                "intent": intent
             }
             
             # Build buttons for each room
@@ -1615,7 +1810,7 @@ async def cmd_front_desk(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
 
-def main():
+async def main():
     if not TELEGRAM_BOT_TOKEN:
         logger.error("TELEGRAM_BOT_TOKEN is not set in environment or config.py")
         exit(1)
@@ -1633,8 +1828,36 @@ def main():
     application.add_handler(CallbackQueryHandler(button_handler))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     
-    logger.info("Starting Telegram UX Bot Polling...")
-    application.run_polling()
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling()
+    
+    logger.info("Main Concierge Bot started!")
+
+    # 2. Initialize and Start 3 Admin Bots
+    admin_apps = []
+    try:
+        admin_apps, _ = await start_admin_bots()
+        logger.info("Admin Notification Bots started!")
+    except Exception as e:
+        logger.error(f"Failed to start admin bots: {e}")
+
+    # 3. Keep running until interrupted
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    except (KeyboardInterrupt, SystemExit, asyncio.CancelledError):
+        logger.info("Stopping bots...")
+        for adm_app in admin_apps:
+            try:
+                await adm_app.updater.stop()
+                await adm_app.stop()
+                await adm_app.shutdown()
+            except Exception as e:
+                logger.warning(f"Error stopping admin bot: {e}")
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

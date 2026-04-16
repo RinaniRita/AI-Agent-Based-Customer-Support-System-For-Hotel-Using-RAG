@@ -56,6 +56,20 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "")
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 # --------------------------------------------------
+# Redis Context Memory
+# --------------------------------------------------
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_DB = int(os.getenv("REDIS_DB", 0))
+
+NOTIFY_BOOKING_TOKEN = os.getenv("NOTIFY_BOOKING_TOKEN", "")
+NOTIFY_BOOKING_CHAT_ID = os.getenv("NOTIFY_BOOKING_CHAT_ID", "")
+NOTIFY_FOOD_TOKEN = os.getenv("NOTIFY_FOOD_TOKEN", "")
+NOTIFY_FOOD_CHAT_ID = os.getenv("NOTIFY_FOOD_CHAT_ID", "")
+NOTIFY_REQUEST_TOKEN = os.getenv("NOTIFY_REQUEST_TOKEN", "")
+NOTIFY_REQUEST_CHAT_ID = os.getenv("NOTIFY_REQUEST_CHAT_ID", "")
+
+# --------------------------------------------------
 # Optional / future settings
 # --------------------------------------------------
 RATE_LIMIT = int(os.getenv("RATE_LIMIT", 60))
