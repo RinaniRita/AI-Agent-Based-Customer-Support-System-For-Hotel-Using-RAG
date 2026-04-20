@@ -251,6 +251,7 @@ async def sheets_webhook(request: Request):
         header_map = {
             "ID": "id",
             "Name": "guest_name",
+            "Email": "guest_email",
             "Phone": "guest_phone",
             "Room Number": "room_number",
             "Check In": "check_in",

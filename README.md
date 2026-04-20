@@ -1,89 +1,100 @@
-# Apollo Hotel AI Concierge System
+# 🏨 Apollo Hotel: Autonomous AI Concierge & RAG Orchestrator
 
-## Overview
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Gemini](https://img.shields.io/badge/Intelligence-Gemini_2.0-8E75B2?logo=googlegemini&logoColor=white)](https://aistudio.google.com/)
+[![Ollama](https://img.shields.io/badge/Local_AI-Ollama-000000?logo=ollama&logoColor=white)](https://ollama.com/)
+[![Telegram](https://img.shields.io/badge/Interface-Telegram-26A5E4?logo=telegram&logoColor=white)](https://telegram.org/)
 
-The Apollo Hotel AI Concierge is a production-ready, RAG-grounded customer support system designed for high-end hospitality environments. The system leverages the Gemini 2.0 Pro model to provide accurate, context-aware responses to guest inquiries via Telegram, integrating live database checks for room availability and food services with a comprehensive knowledge base for hotel policies and local area guidance.
+The **Apollo Hotel AI Concierge** is a state-of-the-art, production-grade hospitality automation system. It transforms the guest experience through a hybrid architecture of **Retrieval-Augmented Generation (RAG)** and **Autonomous Tool-Calling**, grounded in real-time hotel data.
 
-## Architecture
+---
 
-The system utilizes a hybrid Retrieval-Augmented Generation (RAG) and tool-calling architecture to ensure responses are grounded in verified hotel data.
+## 🌟 Core System Pillars
+
+### 1. Autonomous Intent Capture (Direct-Catch)
+Unlike traditional menu-driven bots, the Apollo Agent uses high-precision LLM reasoning to "catch" requests directly from casual chat. If a guest says, *"I need extra towels ASAP,"* the bot identifies the `SERVICE_REQUEST` intent, validates room ownership, and notifies the staff bot instantly.
+
+### 2. Bi-Directional CRM Sync (2-Way CRM)
+Your **Google Sheets** act as a live digital command center. 
+- **Staff Control**: Updating a status in the spreadsheet (e.g., changing a booking to `CHECK_IN`) triggers an **instant push notification** to the guest's Telegram.
+- **Agent Logging**: Every AI-captured request is synced to the cloud in milliseconds, ensuring absolute transparency.
+
+### 3. "Tri-Bot" Multi-Staff Orchestration
+The system orchestrates three specialized internal bots (+ the Guest Bot) to manage specific hotel departments:
+- **🛎️ Front Desk Bot**: Registration and check-in updates.
+- **🍳 Kitchen Admin Bot**: Milestone-driven order management (Recieved → Preparing → Delvering).
+- **🛠️ Service/Maintenance Bot**: Real-time triage for guest housekeeping and maintenance needs.
+
+### 4. Grounded RAG Intelligence
+Using a **FAISS Vector Store** and Gemini embeddings, the agent provides hyper-accurate information on hotel policies, local area guides, and luxury service trivia, while strictly avoiding hallucinations.
+
+---
+
+## 🏗️ Architecture Overview
 
 ```mermaid
 graph TD
-    User((Guest)) --> Telegram[Telegram Bot Interface]
-    Telegram --> Router[Agent Router]
-    
-    subgraph "Decision Engine"
-        Router --> Classifier[Intent Classifier]
-        Classifier --> Tool[Tool Dispatcher]
-        Classifier --> RAG[RAG Retrieval Service]
-    end
-    
-    subgraph "Data Storage"
-        Tool --> SQLite[(SQLite Database)]
-        RAG --> FAISS[(FAISS Vector Store)]
-        FAISS --> Static[Static Knowledge Base]
-    end
-    
-    Tool --> Response[Grounded Response]
-    RAG --> Response
-    Response --> Telegram
+    User((Guest)) -- "Natural Language" --> Bot[AI Concierge]
+    Bot -- "Similarity Search" --> FAISS[(FAISS Vector DB)]
+    Bot -- "Tool Calling" --> SQLite[(SQLite Store)]
+    SQLite -- "Sync Thread" --> Sheets[[Google Sheets CRM]]
+    Sheets -- "Webhooks" --> API[FastAPI Server]
+    API -- "Direct Push" --> User
+    API -- "Alerts" --> Staff(Specialized Staff Bots)
 ```
 
-## System Components
+---
 
-### 1. Intent Classifier
-Determines user intent from one of the following categories:
-- GET_ROOMS: List available room types and pricing.
-- RECOMMEND: Provide room suggestions based on budget.
-- BOOK: Initiate the reservation process.
-- ORDER_FOOD: Access the in-room dining system.
-- GENERAL: Knowledge base inquiries (Wi-Fi, directions, policies).
+## 🚀 Getting Started
 
-### 2. Knowledge Base (RAG)
-Stored in the static_data directory, the knowledge base contains Markdown-formatted policies and guides.
-- Apollo_Hotel_KB: Core policies, services, and FAQ.
-- Local_Area_Guide: Specific Hanoi 2026 intelligence (Xanh SM, Grab, safety).
+### Method A: Docker Compose (Professional Mode)
+This is the recommended way to run the full ecosystem including the **Redis** persistence store.
 
-### 3. Logic Layer
-- llm_client.py: Handles model communication with built-in retry logic and embedding generation.
-- agent_router.py: Orchestrates the flow between classification, tool execution, and RAG retrieval.
-- ingest_kb.py: Automates the indexing of markdown files into the FAISS vector store.
+1.  **Clone & Configure**:
+    ```bash
+    cp ai-agent-cs/.env.example ai-agent-cs/.env
+    # Fill in your GEMINI_API_KEY and TELEGRAM_BOT_TOKEN
+    ```
+2.  **Start Services**:
+    ```bash
+    docker-compose up --build
+    ```
+    *Note: The system is pre-configured to find Ollama on your host machine via `host.docker.internal`.*
 
-## Installation and Deployment
+### Method B: Manual Setup (Local Development)
+1.  **Install Dependencies**:
+    ```bash
+    pip install -r ai-agent-cs/requirements.txt
+    ```
+2.  **Initialize Infrastructure**:
+    ```bash
+    python ai-agent-cs/backend/database/setup_db.py
+    python ai-agent-cs/backend/data_scripts/ingest_kb.py
+    ```
+3.  **Run the System**:
+    - **Telegram Bot**: `python ai-agent-cs/start_telegram_bot.py`
+    - **API Server**: `uvicorn ai-agent-cs.backend.api_server:app --port 8000`
 
-### Prerequisites
-- Python 3.10 or higher
-- Docker and Docker Compose
-- Gemini API Key
-- Telegram Bot Token
+---
 
-### Local Setup
-1. Clone the repository and navigate to the project root.
-2. Create a .env file based on the provided .env.example.
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Initialize the database and knowledge base:
-   ```bash
-   python ai-agent-cs/backend/database/setup_db.py
-   python ai-agent-cs/backend/data_scripts/ingest_kb.py
-   ```
-5. Start the Telegram bot:
-   ```bash
-   python ai-agent-cs/start_telegram_bot.py
-   ```
+## ⚙️ Configuration Standards
 
-### Docker Deployment
-The system is optimized for containerized environments. To deploy:
-```bash
-docker build -t hotel-ai-agent ./ai-agent-cs
-docker run -d --env-file .env hotel-ai-agent
-```
-The container uses entrypoint.sh to automatically verify database integrity and index the knowledge base on every startup.
+The system utilizes an **Aligned Environment Architecture**. Your `.env` and `.env.example` are mirrored for clarity:
 
-## Development Standards
-- All Knowledge Base modifications must be performed in the static_data/ directory.
-- Pricing must adhere to the standardized Euro (€) format for consistency across documents.
-- The use of emojis or non-text icons is strictly prohibited in professional documentation and system prompts.
+| Section | Key Variables | Purpose |
+| :--- | :--- | :--- |
+| **Intelligence** | `GEMINI_API_KEY`, `OLLAMA_BASE_URL` | Cloud and Local LLM endpoints. |
+| **Networking** | `API_BASE_URL`, `BACKEND_WEBHOOK_URL` | Links Google Sheets to your Local Bot. |
+| **Persistence** | `REDIS_HOST`, `REDIS_PORT` | Manages high-speed session memory. |
+| **Staff Bots** | `NOTIFY_BOOKING_TOKEN`, `NOTIFY_FOOD_TOKEN` | Tokens for the departmental staff bots. |
+
+---
+
+## 🛡️ "Zero-Configuration" Self-Healing
+The system is built for resilience. During boot (via `entrypoint.sh`), it automatically:
+- Checks for connection to the Redis memory store.
+- Rebuilds the SQLite database if it's missing.
+- Re-indexes the entire Knowledge Base into FAISS if no index is found.
+
+---
+**Apollo Hotel** — *Intelligent Hospitality, Powered by Agentic AI.*

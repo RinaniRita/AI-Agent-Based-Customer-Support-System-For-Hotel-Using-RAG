@@ -86,6 +86,11 @@ def seed_all():
 
 if __name__ == "__main__":
     print("Hotel System: Initializing Luxury Hotel database (40 physical rooms)...")
+    db_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "hotel_data.db")
+    if os.path.exists(db_path):
+        os.remove(db_path)
+        print("Note: Existing database file deleted for a completely fresh start.")
+    
     init_db()
     seed_all()
     print("Success: Database setup complete! File: data/hotel_data.db")

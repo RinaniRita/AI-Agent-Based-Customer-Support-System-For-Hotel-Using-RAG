@@ -48,9 +48,9 @@ class LLMClient:
     def generate_response(self, prompt: str, context: List[str] = None, system_prompt: Optional[str] = None, **kwargs) -> str:
         if context and len(context) > 0:
             context_str = "\n\n".join(context)
-            full_prompt = f"Context documents to ground your answer:\n{context_str}\n\nUser Question: {prompt}\n\nInstructions: Use ONLY the provided context and any provided [GLOBAL HOTEL FACTS]. If those sources fully answer the question (like Wi-Fi, check-in, or location), answer directly and concisely. Only ask a clarifying question if the intent is truly ambiguous and not covered by the facts."
+            full_prompt = f"Context documents (Use ONLY if relevant):\n{context_str}\n\nUser Question: {prompt}\n\nInstructions: First, check if the user is asking about [RECENT CHAT HISTORY]. If they are, use the history. Otherwise, use the Context documents and any provided [GLOBAL HOTEL FACTS]. If those sources fully answer the question, answer directly. If the context is completely irrelevant to the question, ignore it."
         else:
-            full_prompt = f"User Question: {prompt}\n\nWARNING: No local context docs found. Check if the answer is in the [GLOBAL HOTEL FACTS]. If it is, answer directly. If not, only then ask a clarifying question to try and narrow down the guest's intent."
+            full_prompt = f"User Question: {prompt}\n\nWARNING: No local context docs found. Check if the answer is in the [GLOBAL HOTEL FACTS] or [RECENT CHAT HISTORY]. If it is, answer directly. If not, only then ask a clarifying question to try and narrow down the guest's intent."
 
         if self.provider == "gemini":
             return self._generate_gemini_response(full_prompt, system_prompt, **kwargs)

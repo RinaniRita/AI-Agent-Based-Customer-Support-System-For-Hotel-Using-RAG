@@ -18,10 +18,12 @@ Tools:
 
 import re
 import logging
+import asyncio
 from typing import Dict, Any, List, Optional
 
 from ..services.llm_client import llm_client
 from ..services.rag_service import RAGService
+from ..services.memory_service import memory_service
 
 # Database helpers
 import sys, os
@@ -37,6 +39,7 @@ from backend.services.food_service import check_food_inventory, suggest_alternat
 from backend.services.room_service import check_room_availability, get_room_status
 from backend.services.order_service import get_order_status
 from backend.services.user_service import get_my_booking_info, check_food_order_permission
+from backend.services.notification_service import notify_employee_request
 
 logger = logging.getLogger(__name__)
 
@@ -128,11 +131,22 @@ CUSTOMER_SUPPORT_PROMPT = (
 _rag_service = RAGService()
 
 
-def classify_intent(user_input: str) -> str:
+def classify_intent(user_input: str, chat_id: int = None) -> str:
     """Ask LLM to classify the user's intent into one of predefined labels."""
     try:
+        # Build prompt with optional chat history context
+        prompt_text = user_input
+        if chat_id:
+            history = memory_service.get_chat_history(str(chat_id))
+            if history:
+                history_text = "\n[RECENT CHAT HISTORY]\n"
+                for msg in history[-4:-1]: # Exclude the very last one which is the current input
+                    role = "Agent" if msg["role"] == "assistant" else "Guest"
+                    history_text += f"{role}: {msg['content']}\n"
+                prompt_text += history_text
+                
         raw_response = llm_client.generate_response(
-            prompt=INTENT_PROMPT.format(message=user_input),
+            prompt=INTENT_PROMPT.format(message=prompt_text),
             system_prompt="You are a strict intent classifier. Reply with exactly one word.",
             temperature=0.0
         )
@@ -272,7 +286,7 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
     Returns a dict with at least {'response': str, 'intent': str}
     so the caller in main.py can act on the intent if needed.
     """
-    intent = classify_intent(user_input)
+    intent = classify_intent(user_input, chat_id)
     logger.info(f"[Agent] Intent for '{user_input[:40]}…' → {intent}")
 
     # ── GET_ROOMS ──
@@ -515,6 +529,19 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
         # Log the request with the specific room_number
         result = create_service_request(chat_id, service_type, user_input, room_number=target_room)
         
+        # Notify Service Bot (Staff) - Bridge sync to async
+        try:
+            req_data = {
+                "id": result,
+                "telegram_id": chat_id,
+                "room_number": target_room,
+                "request_type": service_type,
+                "details": user_input
+            }
+            asyncio.run(notify_employee_request(req_data))
+        except Exception as e:
+            logger.error(f"Failed to notify staff for AI-captured request: {e}")
+
         resp = (
             f"🛎️ *Front Desk Request Successfully Logged*\n\n"
             f"Certainly! I've shared your request with our dedicated staff for **Room {target_room}**:\n"
@@ -543,20 +570,42 @@ def process_agent_query(user_input: str, chat_id: int) -> Dict[str, Any]:
             else:
                 dynamic_prompt += f"\n\n[GUEST CONTEXT]\nThe guest currently has no active room assignment."
 
+            # Inject chat history into the user prompt so it's highly visible
+            history = memory_service.get_chat_history(str(chat_id))
+            final_user_input = user_input
+            if history:
+                history_text = "\n\n[RECENT CHAT HISTORY]\n"
+                # Exclude the last message as it's the current user_input
+                for msg in history[:-1]:
+                    role = "Concierge" if msg["role"] == "assistant" else "Guest"
+                    history_text += f"{role}: {msg['content']}\n"
+                final_user_input = f"{history_text}\n\nCurrent User Message: {user_input}"
+
             # We have RAG context — generate a grounded response
             logger.info(f"[Agent] GENERAL with {len(context_docs)} RAG docs")
             fallback = llm_client.generate_response(
-                prompt=user_input,
+                prompt=final_user_input,
                 context=context_docs,
                 system_prompt=dynamic_prompt,
             )
         else:
             # No relevant docs found — use safety-first fallback
             logger.info("[Agent] GENERAL with no RAG context, using fallback prompt")
+            
+            dynamic_prompt = FALLBACK_PROMPT
+            history = memory_service.get_chat_history(str(chat_id))
+            final_user_input = user_input
+            if history:
+                history_text = "\n\n[RECENT CHAT HISTORY]\n"
+                for msg in history[:-1]:
+                    role = "Concierge" if msg["role"] == "assistant" else "Guest"
+                    history_text += f"{role}: {msg['content']}\n"
+                final_user_input = f"{history_text}\n\nCurrent User Message: {user_input}"
+                
             fallback = llm_client.generate_response(
-                prompt=user_input,
+                prompt=final_user_input,
                 context=[],
-                system_prompt=FALLBACK_PROMPT,
+                system_prompt=dynamic_prompt,
             )
 
         return {

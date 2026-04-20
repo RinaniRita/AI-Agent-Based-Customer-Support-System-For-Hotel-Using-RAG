@@ -29,11 +29,11 @@ def sync_booking_to_sheet(booking_data):
             "sheet_id": CUSTOMER_SHEET_ID,
             "data": booking_data
         }
-        response = requests.post(SHEETS_WEBHOOK_URL, json=payload, timeout=30)
+        response = requests.post(SHEETS_WEBHOOK_URL, json=payload, timeout=10)
         response.raise_for_status()
-        logger.info(f"Successfully synced booking {booking_data.get('id')} to Google Sheets.")
+        logger.info(f"Sync Success (Booking #{booking_data.get('id')}): {response.text}")
     except Exception as e:
-        logger.error(f"Failed to sync booking to Google Sheets: {e}")
+        logger.error(f"Sync Failed (Booking #{booking_data.get('id')}): {e}")
 
 def sync_food_order_to_sheet(order_data):
     """
@@ -64,11 +64,11 @@ def sync_food_order_to_sheet(order_data):
             "sheet_id": FOOD_SHEET_ID,
             "data": payload_data
         }
-        response = requests.post(SHEETS_WEBHOOK_URL, json=payload, timeout=30)
+        response = requests.post(SHEETS_WEBHOOK_URL, json=payload, timeout=10)
         response.raise_for_status()
-        logger.info(f"Successfully synced food order {order_data.get('id')} to Google Sheets.")
+        logger.info(f"Sync Success (Food Order #{order_data.get('id')}): {response.text}")
     except Exception as e:
-        logger.error(f"Failed to sync food order to Google Sheets: {e}")
+        logger.error(f"Sync Failed (Food Order #{order_data.get('id')}): {e}")
 
 def sync_service_request_to_sheet(request_data):
     """
@@ -98,9 +98,12 @@ def sync_service_request_to_sheet(request_data):
             "sheet_id": CUSTOMER_SHEET_ID,
             "data": payload_data
         }
-        response = requests.post(SHEETS_WEBHOOK_URL, json=payload, timeout=30)
+        print(f"DEBUG: Syncing Service Request to {SHEETS_WEBHOOK_URL}")
+        print(f"DEBUG: Payload: {json.dumps(payload, indent=2)}")
+        response = requests.post(SHEETS_WEBHOOK_URL, json=payload, timeout=10)
         response.raise_for_status()
-        logger.info(f"Successfully synced service request {request_data.get('id')} to Google Sheets.")
+        print(f"DEBUG: Response from Google: {response.text}")
+        logger.info(f"Sync Success (Service Request #{request_data.get('id')}): {response.text}")
     except Exception as e:
-        logger.error(f"Failed to sync service request to Google Sheets: {e}")
-
+        print(f"DEBUG: Sync Error: {e}")
+        logger.error(f"Sync Failed (Service Request #{request_data.get('id')}): {e}")

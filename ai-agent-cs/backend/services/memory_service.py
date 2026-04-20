@@ -58,5 +58,30 @@ class MemoryService:
             
         self.client.delete(key)
 
+    def get_chat_history(self, session_id: str) -> list:
+        """Retrieve recent chat history for a given session."""
+        key = f"chat_history:{session_id}"
+        history = self.get(key)
+        if hasattr(history, 'encode') and isinstance(history, str):
+            try:
+                history = json.loads(history)
+            except Exception:
+                pass
+        return history if isinstance(history, list) else []
+
+    def append_to_chat_history(self, session_id: str, role: str, content: str, max_history: int = 10):
+        """Append a message to the chat history, capping the list to max_history."""
+        key = f"chat_history:{session_id}"
+        history = self.get_chat_history(session_id)
+        
+        history.append({"role": role, "content": content})
+        
+        # Keep only the last max_history items to prevent context bloat
+        if len(history) > max_history:
+            history = history[-max_history:]
+            
+        # Store back in redis (expire in 2 hours / 7200 seconds to save memory)
+        self.set(key, history, expire=7200)
+
 # Global instance
 memory_service = MemoryService()

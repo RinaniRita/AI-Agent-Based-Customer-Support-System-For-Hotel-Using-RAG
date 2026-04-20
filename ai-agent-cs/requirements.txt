@@ -1,4 +1,4 @@
-﻿annotated-doc==0.0.4
+annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.13.0
 certifi==2026.2.25
@@ -42,4 +42,5 @@ typing_extensions==4.15.0
 urllib3==2.6.3
 uvicorn==0.44.0
 websockets==16.0
-win32_setctime==1.2.0
+# Windows-specific dependency removed for Docker compatibility
+# win32_setctime==1.2.0

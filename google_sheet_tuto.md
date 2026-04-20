@@ -5,108 +5,178 @@ This guide explains how to connect your **Luxury Hotel AI System** to **Google S
 ---
 
 ## 🏗️ How it Works
-1.  **Local → Sheet (Push)**: When a guest books on Telegram, the Python app sends a POST request to a Google Apps Script Webhook.
+1.  **Local → Sheet (Push)**: When a guest bookings or order food on Telegram, the Python app sends a POST request to a Google Apps Script Webhook.
 2.  **Sheet → Local (Pull)**: When staff edits a cell in Google Sheets, an Apps Script trigger sends a POST request back to your local FastAPI server (via Ngrok).
 
 ---
 
 ## 🛠️ Step 1: Prepare your Spreadsheet
-1.  Create a new Google Sheet.
-2.  Rename the first tab to `Customer_Orders`.
-3.  Add these headers in the **first row (A1 to J1)**:
-    - `ID`, `Name`, `Phone`, `Room Number`, `Check In`, `Check Out`, `Nights`, `Total Price`, `Status`, `Telegram ID`
-4.  Create a second tab named `Food_Orders`.
-5.  Add these headers in the **first row (A1 to G1)**:
-    - `ID`, `Room Number`, `Items`, `Total Price`, `Status`, `Booking ID`, `Chat ID`
+Ensure your Google Sheet has exactly these 3 tabs with these column headers in **Row 1**:
+
+1.  **`customer_info`** (Room Bookings)
+    - Headers: `ID`, `Name`, `Email`, `Phone`, `Room Number`, `Check In`, `Check Out`, `Total Price`, `Status`
+2.  **`order_food`** (Kitchen)
+    - Headers: `ID`, `Room Number`, `Items`, `Total Price`, `Status`
+3.  **`customer_request`** (Front Desk)
+    - Headers: `ID`, `room number`, `request`, `Status`
 
 ---
 
-## 📜 Step 2: Add the Apps Script
+## 📜 Step 2: Add the Apps Script (SMART SYNC V2.2)
 1.  In your Google Sheet, go to **Extensions** > **Apps Script**.
 2.  Delete all existing code and paste the following:
 
 ```javascript
+/**
+ * Apollo Hotel SMART SYNC SCRIPT
+ * Version: 2.2 (Synced with Telegram Button Order)
+ */
+
 function doPost(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Customer_Orders");
-  var foodSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Food_Orders");
   var data = JSON.parse(e.postData.contents);
-  
-  if (data.type === "booking") {
-    sheet.appendRow([data.id, data.guest_name, data.guest_phone, data.room_number, data.check_in, data.check_out, data.nights, data.total_price, data.status, data.telegram_id]);
-  } else if (data.type === "food_order") {
-    foodSheet.appendRow([data.id, data.room_number, data.items, data.total_price, data.status, data.booking_id, data.chat_id]);
+  var action = data.action;
+  var payload = data.data;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  var sheet;
+  var newRow;
+
+  // 1. Identify Target Sheet & Format Data Row to match YOUR headers
+  if (action === "upsert_booking") {
+    sheet = ss.getSheetByName("customer_info");
+    newRow = [
+      payload.id, 
+      payload.guest_name, 
+      payload.guest_email,
+      payload.guest_phone, 
+      payload.room_number, 
+      payload.check_in, 
+      payload.check_out, 
+      payload.total_price, 
+      payload.status
+    ];
+  } 
+  else if (action === "upsert_food") {
+    sheet = ss.getSheetByName("order_food");
+    newRow = [
+      payload.id, 
+      payload.room_number, 
+      payload.items, 
+      payload.total_price, 
+      payload.status
+    ];
+  } 
+  else if (action === "upsert_service") {
+    sheet = ss.getSheetByName("customer_request");
+    newRow = [
+      payload.id, 
+      payload.room_number, 
+      payload.request, 
+      payload.status
+    ];
   }
-  
+
+  if (!sheet) return ContentService.createTextOutput("Sheet not found: " + action);
+
+  // 2. Search for the existing row by ID (Column A)
+  var targetId = String(payload.id);
+  var dataRange = sheet.getDataRange();
+  var values = dataRange.getValues();
+  var rowIndex = -1;
+
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === targetId) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+
+  // 3. Update Existing OR Append New
+  if (rowIndex !== -1) {
+    sheet.getRange(rowIndex, 1, 1, newRow.length).setValues([newRow]);
+  } else {
+    sheet.appendRow(newRow);
+  }
+
   return ContentService.createTextOutput("Success");
 }
 
 function sendEditToBackend(e) {
   if (!e || !e.range) return;
+  var sheet = e.source.getActiveSheet();
+  var sheetName = sheet.getName().toLowerCase();
   
-  var sheetName = e.source.getActiveSheet().getName();
-  var row = e.range.getRow();
-  var col = e.range.getColumn();
-  if (row === 1) return; // Ignore header edits
+  // Detect target type based on YOUR tab names
+  var targetType = "booking"; 
+  if (sheetName.includes("food")) targetType = "food_order";
+  else if (sheetName.includes("request")) targetType = "service_request";
 
-  var rowId = e.source.getActiveSheet().getRange(row, 1).getValue();
-  var headerName = e.source.getActiveSheet().getRange(1, col).getValue();
-  var newValue = e.value || "";
+  if (e.range.getRow() === 1) return;
+
+  var rowId = sheet.getRange(e.range.getRow(), 1).getValue();
+  var headerName = sheet.getRange(1, e.range.getColumn()).getValue();
 
   var payload = {
-    "type": sheetName.toLowerCase().includes("food") ? "food_order" : "booking",
+    "type": targetType,
     "id": rowId,
     "field": headerName,
-    "value": newValue
+    "value": e.value || ""
   };
 
-  // CHANGE THIS TO YOUR NGROK URL
-  var webhookUrl = "https://YOUR_NGROK_URL_HERE.ngrok-free.app/webhook/sheets-edit";
-
-  UrlFetchApp.fetch(webhookUrl, {
-    "method": "post",
-    "contentType": "application/json",
-    "payload": JSON.stringify(payload)
-  });
+  try {
+    var webhookUrl = "https://nonextrusive-hannah-unprodded.ngrok-free.dev/webhook/sheets-edit";
+    UrlFetchApp.fetch(webhookUrl, {
+      "method": "post",
+      "contentType": "application/json",
+      "payload": JSON.stringify(payload)
+    });
+  } catch (err) {
+    Logger.log("Sync Error: " + err);
+  }
 }
 ```
 
 ---
 
-## 🚀 Step 3: Deploy & Authorize
-1.  Click **Deploy** > **New Deployment**.
-2.  Select **Web App**.
-3.  Set "Who has access" to **Anyone**.
-4.  Copy the **Web App URL** (e.g., `https://script.google.com/macros/s/.../exec`).
-5.  **Paste this URL** into your local `.env` file under `GOOGLE_SHEETS_WEBHOOK_URL`.
+## ✅ Step 3: Setup Dropdown Sync (Data Validation)
+To make your Google Sheet "Status" column work exactly like the Telegram buttons, set up **Data Validation** (Dropdowns) with these exact strings:
+
+### 1. For `order_food` (Matching Kitchen Bot):
+*   Select the **Status** column cells.
+*   Insert > **Dropdown**.
+*   Items (In this order):
+    - `RECEIVED`
+    - `PREPARING`
+    - `EN_ROUTE`
+    - `DELIVERED`
+    - `CANCELLED`
+
+### 2. For `customer_info` (Matching Booking Bot):
+*   Items (In this order):
+    - `CONFIRMED`
+    - `CHECK_IN`
+    - `CHECK_OUT`
+    - `CANCELLED`
+
+### 3. For `customer_request` (Matching Service Bot):
+*   Items (In this order):
+    - `PENDING`
+    - `INPROGRESS`
+    - `COMPLETE`
+    - `CANCELLED`
 
 ---
 
-## ⏰ Step 4: Set the "On Edit" Trigger
-This step allows the Sheet to talk back to your computer.
-1.  On the left side of the Apps Script screen, click the **⏰ Triggers** icon (Clock).
-2.  Click **+ Add Trigger**.
-3.  Choose `sendEditToBackend`.
-4.  Event Source: `From spreadsheet`.
-5.  Event type: `On edit`.
-6.  Click **Save**.
-7.  **IMPORTANT**: A popup will appear. Click your account > **Advanced** > **Go to Project (unsafe)** > **Allow**.
+## 🚀 Step 4: Deploy & Authorize
+1.  Click **Deploy** > **Manage Deployments**.
+2.  Edit the existing deployment (Pencil icon).
+3.  Set "Version" to **New version**.
+4.  Click **Deploy**.
 
 ---
 
 ## 📡 Step 5: Start the Tunnel (Ngrok)
-Since Google cannot "see" your laptop, you must open a tunnel:
-1.  Run `ngrok http 8000`.
-2.  Copy the `https://...ngrok-free.app` URL.
-3.  Go back to the Apps Script code (Step 2) and update the `webhookUrl` variable with your new Ngrok link.
-4.  Save the code (💾).
+If you restart Ngrok, your URL will change! You must update the `webhookUrl` in the Apps Script and the `BACKEND_WEBHOOK_URL` in `.env` every time.
 
----
-
-## ✅ Step 6: Test it!
-1.  Start your servers: `python start_api_server.py` and `python start_telegram_bot.py`.
-2.  Book a room on Telegram. The data should appear in your Google Sheet instantly.
-3.  Manually change the **Status** of that row in Google Sheets to `CHECK_IN`.
-4.  The Telegram bot will instantly send a "Welcome!" message to the guest!
-
-> [!CAUTION]
-> If you restart Ngrok, your URL will change! You must update the URL in your Apps Script code every time you get a new Ngrok link.
+> [!IMPORTANT]
+> If you change a status in Google Sheets, the guest will receive an instant Telegram notification just like if you clicked the button in the bot!

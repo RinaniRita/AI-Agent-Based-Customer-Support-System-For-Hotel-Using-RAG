@@ -9,9 +9,11 @@ ENV APP_HOME=/app
 # Create and set working directory
 WORKDIR $APP_HOME
 
-# Install system dependencies (build-essential for some python packages if needed)
+# Install system dependencies (netcat for wait-for-it logic, dos2unix for CRLF fix)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    netcat-openbsd \
+    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -21,8 +23,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project files
 COPY . .
 
-# Ensure the entrypoint script is executable
-RUN chmod +x entrypoint.sh
+# Ensure the entrypoint script is executable and has Linux line endings
+RUN dos2unix entrypoint.sh && chmod +x entrypoint.sh
 
 # Expose the API port
 EXPOSE 8000

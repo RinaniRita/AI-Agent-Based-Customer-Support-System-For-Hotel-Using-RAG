@@ -955,6 +955,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown"
             )
             # Clean up
+            memory_service.append_to_chat_history(str(chat_id), "assistant", f"Booking Confirmed! You booked {session.get('room_name')} ({session.get('nights')} nights). Total: €{session.get('total', 0)}. A payment link was sent.")
+
             del booking_sessions[chat_id]
             user_states[chat_id] = "MAIN_MENU"
             await context.bot.send_message(
@@ -1058,6 +1060,56 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Proceed with context
         booking = ci_bookings[0] if len(ci_bookings) == 1 else next((b for b in ci_bookings if str(b["room_number"]) == str(user_data[chat_id].get("selected_room"))), ci_bookings[0])
         await _show_front_desk_menu(query, chat_id, booking)
+
+    elif data == "fd_confirm_other":
+        print(f"DEBUG: Handling fd_confirm_other for chat_id {chat_id}")
+        try:
+            details = user_data.get(chat_id, {}).get("service_other_text", "No details")
+            room_number = user_data.get(chat_id, {}).get("pending_room")
+            
+            if not room_number:
+                print("DEBUG: Room number not in session, fetching from DB...")
+                b = get_booking_by_user(chat_id)
+                if b:
+                    room_number = b.get("room_number")
+            
+            print(f"DEBUG: Calling create_service_request with room {room_number}...")
+            req_id = await asyncio.to_thread(create_service_request, chat_id, "OTHER", details, room_number=room_number)
+            print(f"DEBUG: create_service_request finished, ID: {req_id}")
+            
+            req_data = {
+                "id": req_id,
+                "telegram_id": chat_id,
+                "room_number": room_number,
+                "request_type": "OTHER",
+                "details": details
+            }
+            print("DEBUG: Notifying employees...")
+            asyncio.create_task(notify_employee_request(req_data))
+
+            user_states[chat_id] = "MAIN_MENU"
+            
+            print("DEBUG: Editing message to confirmation screen...")
+            keyboard = [
+                [InlineKeyboardButton("🛎️ More Services", callback_data="front_desk")],
+                [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
+            ]
+            await query.edit_message_text(
+                text=(
+                    "✅ *Custom Request Sent!*\n\n"
+                    f"📝 *Details:* {escape_markdown_to_html(details)}\n\n"
+                    "Our front desk staff has been notified. Thank you!"
+                ),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML"
+            )
+            print("DEBUG: fd_confirm_other finished SUCCESS")
+        except Exception as e:
+            print(f"DEBUG: CRITICAL ERROR in fd_confirm_other: {e}")
+            import traceback
+            traceback.print_exc()
+            await query.edit_message_text(f"❌ An error occurred while sending your request: {e}")
+
     elif data.startswith("fd_"):
         # Handle Room Selection for Multi-room users
         if data.startswith("fd_room_"):
@@ -1134,6 +1186,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode="Markdown"
             )
+            # Persist the room number for this flow
+            udata["pending_room"] = room_number
+            user_data[chat_id] = udata
             return
 
         # 3. Handle Verification Results
@@ -1164,6 +1219,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply_markup=InlineKeyboardMarkup(keyboard),
                     parse_mode="Markdown"
                 )
+                # Clear any previous message text to avoid old data being sent
+                udata = user_data.get(chat_id, {})
+                udata["service_other_text"] = None
+                user_data[chat_id] = udata
                 return
 
             # One-tap requests
@@ -1195,45 +1254,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     parse_mode="Markdown"
                 )
             return
-
-
-    elif data == "fd_confirm_other":
-        details = user_data.get(chat_id, {}).get("service_other_text", "No details")
-        room_number = user_data.get(chat_id, {}).get("active_booking", {}).get("room_number")
-        
-        # Fallback if room_number is None (e.g. came from generic AI request)
-        if not room_number:
-            b = get_booking_by_user(chat_id)
-            if b:
-                room_number = b.get("room_number")
-
-        
-        req_id = await asyncio.to_thread(create_service_request, chat_id, "OTHER", details, room_number=room_number)
-        
-        # Notify Service Bot
-        req_data = {
-            "id": req_id,
-            "telegram_id": chat_id,
-            "room_number": room_number,
-            "request_type": "OTHER",
-            "details": details
-        }
-        asyncio.create_task(notify_employee_request(req_data))
-
-        user_states[chat_id] = "MAIN_MENU"
-        keyboard = [
-            [InlineKeyboardButton("🛎️ More Services", callback_data="front_desk")],
-            [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
-        ]
-        await query.edit_message_text(
-            text=(
-                "✅ *Custom Request Sent!*\n\n"
-                f"📝 *Details:* {details}\n\n"
-                "Our front desk staff has been notified. Thank you!"
-            ),
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
-        )
 
     elif data == "coming_soon":
         keyboard = [[InlineKeyboardButton("🔙 Back", callback_data="main_menu")]]
@@ -1374,11 +1394,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=chat_id,
             text=(
                 "🔎 *Review Your Request*\n\n"
-                f"📝 *Message:* {user_message}\n\n"
+                f"📝 *Message:* {escape_markdown_to_html(user_message)}\n\n"
                 "Is this correct? Our staff will receive this exactly as written. ✅"
             ),
             reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode="Markdown"
+            parse_mode="HTML"
         )
         return
 
@@ -1658,11 +1678,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
         # ─────────────────────────────────────────────────────────────────
 
+        # Log the user's message to chat history
+        memory_service.append_to_chat_history(str(chat_id), "user", user_message)
+
         result = await asyncio.to_thread(
             process_agent_query,
             user_message,
             chat_id
         )
+
+        # Log the bot's response to chat history
+        if "response" in result:
+            memory_service.append_to_chat_history(str(chat_id), "assistant", result["response"])
+
 
         logger.info(f"[Agent] Intent={result.get('intent')}  Tool={result.get('tool_used')}")
 

@@ -1,0 +1,31 @@
+services:
+  app:
+    build: .
+    container_name: hotel_ai_app
+    restart: always
+    environment:
+      - APP_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Connect to host's Ollama instance
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  redis:
+    image: redis:7-alpine
+    container_name: hotel_ai_redis
+    restart: always
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:

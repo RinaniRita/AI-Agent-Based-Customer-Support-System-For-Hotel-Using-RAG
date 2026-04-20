@@ -2,9 +2,14 @@ import sqlite3
 import os
 import logging
 import sys
+import threading
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-from backend.services.sheets_sync import sync_booking_to_sheet, sync_food_order_to_sheet, sync_service_request_to_sheet
+from backend.services.sheets_sync import (
+    sync_booking_to_sheet, 
+    sync_food_order_to_sheet, 
+    sync_service_request_to_sheet
+)
 
 logger = logging.getLogger(__name__)
 
@@ -224,13 +229,15 @@ def update_booking_guest_info(booking_id, name, email, phone):
     conn.commit()
     conn.close()
     try:
-        sync_booking_to_sheet(get_booking(booking_id))
+        booking = get_booking(booking_id)
+        if booking:
+            threading.Thread(target=sync_booking_to_sheet, args=(booking,), daemon=True).start()
     except Exception as e:
-        logger.error(f"Failed to sync booking {booking_id}: {e}")
+        logger.error(f"Failed to trigger sync for booking {booking_id}: {e}")
 
 
 def update_booking_field(booking_id, field, value):
-    """Generic function to update a single field in a booking."""
+    """Generic function to update a single field in a booking, and sync to Google Sheets."""
     conn = get_connection()
     try:
         # Check if column exists to prevent SQL injection or errors
@@ -243,12 +250,19 @@ def update_booking_field(booking_id, field, value):
         conn.execute(f"UPDATE bookings SET {field} = ? WHERE id = ?", (value, booking_id))
         conn.commit()
         logger.info(f"Updated booking #{booking_id} field '{field}' to '{value}'")
-        return True
     except Exception as e:
         logger.error(f"Error updating booking field: {e}")
         return False
     finally:
         conn.close()
+
+    # Sync to sheets AFTER connection is closed
+    try:
+        sync_booking_to_sheet(get_booking(booking_id))
+    except Exception as e:
+        logger.error(f"Failed to sync booking {booking_id} to sheet: {e}")
+        
+    return True
 
 
 def confirm_booking(booking_id):
@@ -300,13 +314,13 @@ def create_service_request(telegram_id, request_type, details="", room_number=No
     conn.commit()
     conn.close()
 
-    # Attempt to sync to Google Sheets (joining with booking for Room Number)
+    # Attempt to sync to Google Sheets in a background thread (non-blocking)
     try:
         req_data = get_service_request(req_id)
         if req_data:
-            sync_service_request_to_sheet(req_data)
+            threading.Thread(target=sync_service_request_to_sheet, args=(req_data,), daemon=True).start()
     except Exception as e:
-        logger.error(f"Failed to sync service request {req_id}: {e}")
+        logger.error(f"Failed to trigger sync for service request {req_id}: {e}")
 
     return req_id
 
@@ -330,10 +344,10 @@ def update_service_request_status(req_id, new_status):
     conn.commit()
     conn.close()
     
-    # Sync update to sheet
+    # Sync update to sheet in background
     req = get_service_request(req_id)
     if req:
-        sync_service_request_to_sheet(req)
+        threading.Thread(target=sync_service_request_to_sheet, args=(req,), daemon=True).start()
     return req
 
 
@@ -344,8 +358,10 @@ def update_service_request_field(req_id, field, value):
         # Map sheet headers to DB columns if necessary
         header_map = {
             "ID": "id",
-            "Room Number": "room_number", # This is readonly in DB (comes from bookings)
+            "Room Number": "room_number",
+            "room number": "room_number",
             "Request": "details",
+            "request": "details",
             "Status": "status"
         }
         db_field = header_map.get(field, field.lower())
@@ -365,12 +381,21 @@ def update_service_request_field(req_id, field, value):
         conn.execute(f"UPDATE service_requests SET {db_field} = ? WHERE id = ?", (value, req_id))
         conn.commit()
         logger.info(f"Updated service request #{req_id} field '{db_field}' to '{value}'")
-        return True
     except Exception as e:
         logger.error(f"Error updating service request field: {e}")
         return False
     finally:
         conn.close()
+
+    # Sync to sheets AFTER connection is closed (Background)
+    try:
+        req_data = get_service_request(req_id)
+        if req_data:
+            threading.Thread(target=sync_service_request_to_sheet, args=(req_data,), daemon=True).start()
+    except Exception as e:
+        logger.error(f"Failed to trigger sync for service request {req_id}: {e}")
+
+    return True
 
 
 # ─── User-Based Access Control ──────────────────────────────
@@ -441,9 +466,11 @@ def create_food_order(chat_id, room_number, items_json, total_price, booking_id=
     conn.commit()
     conn.close()
     try:
-        sync_food_order_to_sheet(get_food_order(order_id))
+        order = get_food_order(order_id)
+        if order:
+            threading.Thread(target=sync_food_order_to_sheet, args=(order,), daemon=True).start()
     except Exception as e:
-        logger.error(f"Failed to sync food order {order_id}: {e}")
+        logger.error(f"Failed to trigger sync for food order {order_id}: {e}")
     return order_id
 
 
@@ -461,9 +488,9 @@ def update_food_order_status(order_id, new_status):
     res = dict(row) if row else None
     if res:
         try:
-            sync_food_order_to_sheet(res)
+            threading.Thread(target=sync_food_order_to_sheet, args=(res,), daemon=True).start()
         except Exception as e:
-            logger.error(f"Failed to sync food order {order_id}: {e}")
+            logger.error(f"Failed to trigger sync for food order {order_id}: {e}")
     return res
 
 
@@ -499,10 +526,19 @@ def update_food_order_field(order_id, field, value):
         conn.execute(f"UPDATE food_orders SET {field} = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (value, order_id))
         conn.commit()
         logger.info(f"Updated food order #{order_id} field '{field}' to '{value}'")
-        return True
     except Exception as e:
         logger.error(f"Error updating food order field: {e}")
         return False
     finally:
         conn.close()
+
+    # Sync to sheets AFTER connection is closed (Background)
+    try:
+        order = get_food_order(order_id)
+        if order:
+            threading.Thread(target=sync_food_order_to_sheet, args=(order,), daemon=True).start()
+    except Exception as e:
+        logger.error(f"Failed to trigger sync for food order {order_id} to sheet: {e}")
+
+    return True
 
